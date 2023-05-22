@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1 style="text-align: center;">Planejamento de Redes Sociais</h1>
+    <div style="width: 50%; margin: 0 auto;">
+        {% for resposta in respostas %}
+            <div class="resposta-box">
+                <h2>{{ resposta.pergunta }}</h2>
+                <p>{{ resposta.resposta }}</p>
+            </div>
+        {% endfor %}
+    </div>
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>OKRs</h1>
+    <a class="btn" href="{{ url_for('cadastrar_okr') }}">Cadastrar novo OKR</a>
+    <table class="styled-table">
+        <thead>
+            <tr>
+                <th>Empresa</th>
+                <th>Objetivo 1</th>
+                <th>Objetivo 2</th>
+                <th>Objetivo 3</th>
+                <th>Objetivo 4</th>
+                <th>Objetivo 5</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for okr in okrs %}
+            <tr>
+                <td>{{ okr.empresa.nome_contato }}</td>
+                <td>{{ okr.objetivo_1 }}</td>
+                <td>{{ okr.objetivo_2 }}</td>
+                <td>{{ okr.objetivo_3 }}</td>
+                <td>{{ okr.objetivo_4 }}</td>
+                <td>{{ okr.objetivo_5 }}</td>
+                <td>
+                    <a href="{{ url_for('atualizar_okr', id=okr.id) }}" class="btn btn-primary">Atualizar</a>
+                    <button type="button" class="btn btn-danger" data-toggle="modal" data-target="#deleteModal{{okr.id}}">Deletar</button>
+
+                    <!-- Modal -->
+                    <div class="modal fade" id="deleteModal{{okr.id}}" tabindex="-1" role="dialog" aria-labelledby="deleteModalLabel" aria-hidden="true">
+                        <div class="modal-dialog" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="deleteModalLabel">Deletar OKR</h5>
+                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                                <div class="modal-body">
+                                    Tem certeza que deseja deletar este OKR?
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+
+                                    <form action="{{ url_for('deletar_okr', id=okr.id) }}" method="POST">
+                                        <input type="submit" class="btn btn-danger" value="Sim, deletar">
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

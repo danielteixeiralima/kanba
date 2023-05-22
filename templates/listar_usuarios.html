@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Usuários</h1>
+    <a class="btn" href="{{ url_for('cadastrar_usuario') }}">Cadastrar novo usuário</a>
+    <table class="styled-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nome</th>
+                <th>Sobrenome</th>
+                <th>Email</th>
+                <th>Celular</th>
+                <th>Empresa</th>
+                <th>Data de Entrada</th>
+                <th>Cargo</th>
+                <th>Status</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for usuario in usuarios %}
+            <tr>
+                <td>{{ usuario.id }}</td>
+                <td>{{ usuario.nome }}</td>
+                <td>{{ usuario.sobrenome }}</td>
+                <td>{{ usuario.email }}</td>
+                <td>{{ usuario.celular }}</td>
+                <td>{{ usuario.empresa.nome_contato }}</td>
+                <td>{{ usuario.data_entrada }}</td>
+                <td>{{ usuario.cargo }}</td>
+                <td>{{ usuario.status }}</td>
+                <td>
+                    <a href="{{ url_for('atualizar_usuario', id=usuario.id) }}" class="btn btn-primary">Atualizar</a>
+                    <button type="button" class="btn btn-danger" data-toggle="modal" data-target="#deleteModal{{usuario.id}}">Deletar</button>
+
+                    <!-- Modal -->
+                    <div class="modal fade" id="deleteModal{{usuario.id}}" tabindex="-1" role="dialog" aria-labelledby="deleteModalLabel" aria-hidden="true">
+                        <div class="modal-dialog" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="deleteModalLabel">Deletar Usuário</h5>
+                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                                <div class="modal-body">
+                                    Tem certeza que deseja deletar este usuário?
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+
+                                    <form action="{{ url_for('deletar_usuario', id=usuario.id) }}" method="POST">
+                                        <input type="submit" class="btn btn-danger" value="Sim, deletar">
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

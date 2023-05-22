@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Planejamento de Mídias Sociais</h1>
+    <div class="pergunta-resposta">
+        <h2>{{ pergunta }}</h2>
+        <p>{{ resposta }}</p>
+        <form action="{{ url_for('responder_pergunta', id=id) }}" method="post">
+            <input type="submit" name="aprovado" value="Aprovado" class="btn btn-success">
+            <textarea name="feedback" placeholder="Digite seu feedback aqui..."></textarea>
+            <input type="submit" name="feedback_submit" value="Enviar Feedback" class="btn btn-danger">
+        </form>
+    </div>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1 style="text-align: center;">Planejamento de Redes Sociais</h1>
+    <div style="width: 50%; margin: 0 auto;">
+        <form action="{{ url_for('planejamento_redes') }}" method="post" style="display: flex; flex-direction: column; align-items: center;">
+            <label for="empresa">Escolha uma empresa:</label>
+            <select id="empresa" name="empresa" style="margin-bottom: 20px; width: 100%; padding: 10px; font-size: 1.2em;">
+                {% for empresa in empresas %}
+                    <option value="{{ empresa.id }}" data-descricao="{{ empresa.descricao_empresa }}">{{ empresa.nome_contato }}</option>
+                {% endfor %}
+            </select>
+            <label for="descricao_empresa">Descrição da Empresa:</label>
+            <textarea id="descricao_empresa" name="descricao_empresa" style="margin-bottom: 20px; width: 100%; height: 300px; padding: 10px; font-size: 1.2em;">{{ empresas[0].descricao_empresa if empresas else '' }}</textarea>
+            <input type="submit" value="Iniciar Planejamento" style="padding: 10px 20px; font-size: 1.2em; background-color: #007BFF; color: white; border: none; border-radius: 5px; cursor: pointer;" onclick="return confirm('O processo de planejamento de redes pode demorar um pouco e integra diretamente com o ChatGPT-4 por meio de API. Você deseja continuar?');">
+            <a href="{{ url_for('visualizar_planejamento_atual', id_empresa=empresas[0].id if empresas else 0) }}" class="btn btn-info">Ver Planejamento Atual</a>
+
+        </form>
+    </div>
+    <script>
+        $(document).ready(function() {
+            $('#empresa').change(function() {
+                var descricao = $(this).find(':selected').data('descricao');
+                $('#descricao_empresa').val(descricao);
+            });
+        });
+    </script>
+
+{% endblock %}

@@ -1,0 +1,171 @@
+body {
+    background-color: #1e1e1e;
+    color: #ffffff;
+    font-family: Arial, sans-serif;
+}
+
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: #f9f9f9;
+    min-width: 160px;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    z-index: 1;
+}
+
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+
+.dropdown-content a {
+    color: black;
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+    text-align: left;
+}
+
+.dropdown-content a:hover {background-color: #f1f1f1}
+
+h1, h2, h3, h4, h5, h6 {
+    color: #ffffff;
+}
+
+a {
+    color: #1e90ff;
+}
+
+a:hover {
+    color: #63c5da;
+}
+
+input, textarea, select {
+    background-color: #333;
+    color: #ffffff;
+    border: 1px solid #555555;
+}
+
+input[type=submit], button {
+    background-color: #4CAF50;
+    color: white;
+    cursor: pointer;
+}
+
+input[type=submit]:hover, button:hover {
+    background-color: #45a049;
+}
+
+.styled-table {
+    border-collapse: collapse;
+    margin: 25px 0;
+    font-size: 0.9em;
+    font-family: sans-serif;
+    min-width: 400px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+    width: 90%;
+    margin: 0 auto;
+    color: #ffffff;
+    background-color: #1e1e1e;
+}
+
+.styled-table thead tr {
+    background-color: #009879;
+    color: #ffffff;
+    text-align: left;
+}
+
+.styled-table th, .styled-table td {
+    padding: 12px 15px;
+    border: 1px solid #555555;
+}
+
+.styled-table tbody tr {
+    border-bottom: 1px solid #555555;
+}
+
+.styled-table tbody tr:nth-of-type(even) {
+    background-color: #2e2e2e;
+}
+
+.styled-table tbody tr:last-of-type {
+    border-bottom: 2px solid #009879;
+}
+
+.form-style label {
+    display: block;
+    margin-bottom: 10px;
+}
+
+.form-style input[type="text"],
+.form-style input[type="email"],
+.form-style input[type="tel"],
+.form-style textarea {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #555555;
+    background-color: #1e1e1e;
+    color: #ffffff;
+}
+
+.form-style input[type="submit"] {
+    background-color: #4CAF50;
+    color: white;
+    cursor: pointer;
+    padding: 10px 20px;
+    border: none;
+}
+
+.form-style input[type="submit"]:hover {
+    background-color: #45a049;
+}
+
+.btn {
+    color: #fff;
+    background-color: #009879;
+    padding: 10px 24px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    transition-duration: 0.4s;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.modal-content {
+    background-color: #1e1e1e;
+    color: #ffffff;
+}
+
+.modal-header .close {
+    color: #ffffff;
+}
+
+.modal-footer .btn-secondary {
+    background-color: #333;
+    border-color: #555555;
+}
+
+.modal-footer .btn-danger {
+    background-color: #ff0000;
+    border-color: #ff0000;
+}
+
+nav {
+    background-color: #333;
+    position: sticky;
+    top: 0;
+    width: 100%;
+    z-index: 100;
+}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Atualizar Usuário</h1>
+    <form action="{{ url_for('atualizar_usuario', id=usuario.id) }}" method="POST">
+        <label for="nome">Nome:</label><br>
+        <input type="text" id="nome" name="nome" value="{{ usuario.nome }}"><br>
+        <label for="sobrenome">Sobrenome:</label><br>
+        <input type="text" id="sobrenome" name="sobrenome" value="{{ usuario.sobrenome }}"><br>
+        <label for="email">Email:</label><br>
+        <input type="email" id="email" name="email" value="{{ usuario.email }}"><br>
+        <label for="celular">Celular:</label><br>
+        <input type="text" id="celular" name="celular" value="{{ usuario.celular }}"><br>
+        <label for="id_empresa">Empresa:</label><br>
+        <select id="id_empresa" name="id_empresa">
+            {% for empresa in empresas %}
+                <option value="{{ empresa.id }}" {% if empresa.id == usuario.id_empresa %}selected{% endif %}>{{ empresa.nome_contato }}</option>
+            {% endfor %}
+        </select><br>
+
+        <label for="cargo">Cargo:</label><br>
+        <input type="text" id="cargo" name="cargo" value="{{ usuario.cargo }}"><br>
+        <label for="status">Status:</label><br>
+        <select id="status" name="status">
+            <option value="ativo" {% if usuario.status == 'ativo' %}selected{% endif %}>Ativo</option>
+            <option value="inativo" {% if usuario.status == 'inativo' %}selected{% endif %}>Inativo</option>
+        </select><br>
+        <input type="submit" value="Atualizar">
+    </form>
+{% endblock %}

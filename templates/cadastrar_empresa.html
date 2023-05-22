@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Cadastrar Empresa</h1>
+    <form class="form-style" action="{{ url_for('cadastrar_empresa') }}" method="post">
+        <div class="form-group">
+            <label for="nome_contato">Nome do Contato:</label>
+            <input type="text" id="nome_contato" name="nome_contato">
+        </div>
+        <div class="form-group">
+            <label for="email_contato">Email do Contato:</label>
+            <input type="email" id="email_contato" name="email_contato">
+        </div>
+        <div class="form-group">
+            <label for="telefone_contato">Telefone do Contato:</label>
+            <input type="tel" id="telefone_contato" name="telefone_contato">
+        </div>
+        <div class="form-group">
+            <label for="endereco_empresa">Endereço da Empresa:</label>
+            <input type="text" id="endereco_empresa" name="endereco_empresa">
+        </div>
+        <div class="form-group">
+            <label for="setor_atuacao">Setor de Atuação:</label>
+            <input type="text" id="setor_atuacao" name="setor_atuacao">
+        </div>
+        <div class="form-group">
+            <label for="tamanho_empresa">Tamanho da Empresa:</label>
+            <input type="text" id="tamanho_empresa" name="tamanho_empresa">
+        </div>
+        <div class="form-group">
+            <label for="descricao_empresa">Descrição da Empresa:</label>
+            <textarea id="descricao_empresa" name="descricao_empresa"></textarea>
+        </div>
+        <div class="form-group">
+            <label for="objetivos_principais">Objetivos Principais:</label>
+            <textarea id="objetivos_principais" name="objetivos_principais"></textarea>
+        </div>
+        <div class="form-group">
+            <label for="historico_interacoes">Histórico de Interações:</label>
+            <textarea id="historico_interacoes" name="historico_interacoes"></textarea>
+        </div>
+        <div class="form-group">
+            <input type="submit" value="Cadastrar">
+        </div>
+    </form>
+{% endblock %}
+

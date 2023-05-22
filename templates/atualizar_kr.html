@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Atualizar KR</h1>
+    <form action="{{ url_for('atualizar_kr', id=kr.id) }}" method="POST">
+        <label for="empresa">Empresa:</label><br>
+        <select id="empresa" name="empresa">
+            {% for empresa in empresas %}
+                <option value="{{ empresa.id }}" {% if empresa.id == kr.id_empresa %} selected {% endif %}>{{ empresa.nome_contato }}</option>
+            {% endfor %}
+        </select><br>
+        <label for="objetivo">Objetivo:</label><br>
+        <select id="objetivo" name="objetivo">
+            <!-- Os objetivos serão preenchidos dinamicamente pelo JavaScript -->
+        </select><br>
+        <label for="texto">Texto:</label><br>
+        <input type="text" id="texto" name="texto" value="{{ kr.texto }}"><br>
+        <input type="submit" value="Atualizar">
+    </form>
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
+{% endblock %}
