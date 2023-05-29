@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Lista de Tarefas por Usuário</h1>
+    <table class="styled-table">
+        <thead>
+            <tr>
+                <th>Usuário</th>
+                <th>Tarefas</th>
+                <th>Data de Criação</th>
+                <th>Ação</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for usuario in usuarios %}
+                <tr>
+                    <td>{{ usuario.nome }}</td>
+                    <td>
+                        {% for sprint in usuario.sprints %}
+                            {{ sprint.tarefa }}<br>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% for sprint in usuario.sprints %}
+                            {{ sprint.data_criacao }}<br>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('montar_tarefas_semana', usuario_id=usuario.id) }}" class="btn btn-primary">Montar Tarefas da Semana</a>
+
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

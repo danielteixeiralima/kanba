@@ -9,9 +9,11 @@
                 <option value="{{ empresa.id }}" {% if empresa.id == kr.id_empresa %} selected {% endif %}>{{ empresa.nome_contato }}</option>
             {% endfor %}
         </select><br>
-        <label for="objetivo">Objetivo:</label><br>
-        <select id="objetivo" name="objetivo">
-            <!-- Os objetivos serão preenchidos dinamicamente pelo JavaScript -->
+        <label for="okr">Objetivo:</label><br>
+        <select id="okr" name="okr">
+            {% for okr in okrs %}
+                <option value="{{ okr.id }}" {% if okr.id == kr.id_okr %} selected {% endif %}>{{ okr.objetivo }}</option>
+            {% endfor %}
         </select><br>
         <label for="texto">Texto:</label><br>
         <input type="text" id="texto" name="texto" value="{{ kr.texto }}"><br>

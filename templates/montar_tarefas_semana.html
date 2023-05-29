@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Montagem de Tarefas da Semana</h1>
+    <h2>Empresa: {{ empresa.nome }}</h2>
+    <h3>Usuário: {{ usuario.nome }} {{ usuario.sobrenome }}</h3>
+    <h3>Cargo: {{ usuario.cargo }}</h3>
+
+    <h4>Objetivos e KRs:</h4>
+    {% for okr in okrs %}
+        <p>{{ okr.objetivo }}</p>
+        {% for kr in krs %}
+            {% if kr.id_okr == okr.id %}
+                <p> - {{ kr.texto }}</p>
+            {% endif %}
+        {% endfor %}
+    {% endfor %}
+
+    <h4>Macro Ações:</h4>
+    {% for acao in macro_acoes %}
+        <p>{{ acao.texto }}</p>
+    {% endfor %}
+
+    <h4>Tarefas:</h4>
+    {% for sprint in sprints %}
+        <p>{{ sprint.tarefa }} - Criado em: {{ sprint.data_criacao }}</p>
+    {% endfor %}
+
+    <form method="POST" action="{{ url_for('iniciar_processo', usuario_id=usuario.id) }}">
+        <button type="submit" class="btn btn-primary">Iniciar Processo</button>
+    </form>
+
+{% endblock %}

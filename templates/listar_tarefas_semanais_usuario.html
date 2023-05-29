@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Tarefas Semanais por Usuário</h1>
+    <table class="styled-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Empresa ID</th>
+                <th>Usuário</th> <!-- Nova coluna -->
+                <th>Tarefa Semana</th>
+                <th>Data para Conclusão</th>
+                <th>Data de Criação</th>
+                <th>Data de Atualização</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tarefa in tarefas_semanais %}
+            <tr>
+                <td>{{ tarefa.id }}</td>
+                <td>{{ tarefa.empresa_id }}</td>
+                <td>{{ tarefa.usuario.nome }}</td> <!-- Nova célula -->
+                <td>{{ tarefa.tarefa_semana }}</td>
+                <td>{{ tarefa.data_para_conclusao }}</td>
+                <td>{{ tarefa.data_criacao }}</td>
+                <td>{{ tarefa.data_atualizacao }}</td>
+                <td>
+                    <a href="#" class="btn btn-primary">Atualizar</a>
+                    <a href="#" class="btn btn-danger">Deletar</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

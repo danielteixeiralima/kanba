@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Atualizar Macro Ação</h1>
+    <form method="POST">
+        <label for="texto">Texto:</label><br>
+        <input type="text" id="texto" name="texto" value="{{ acao.texto }}"><br>
+        <label for="aprovada">Aprovada:</label><br>
+        <select id="aprovada" name="aprovada">
+            <option value="sim" {% if acao.aprovada %} selected {% endif %}>Sim</option>
+            <option value="nao" {% if not acao.aprovada %} selected {% endif %}>Não</option>
+        </select>
+        <input type="submit" value="Atualizar">
+    </form>
+{% endblock %}

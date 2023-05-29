@@ -1,10 +1,13 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
-from models import db, Empresa, Resposta, Usuario, OKR, KR
+from flask import Flask, render_template, request, redirect, url_for, session, abort, flash
+from models import db, Empresa, Resposta, Usuario, OKR, KR, MacroAcao, Sprint, TarefaSemanal
 import requests
 import json
 import time
 from flask_migrate import Migrate
 from flask import jsonify
+from datetime import datetime
+
+
 
 
 
@@ -219,7 +222,7 @@ def perguntar_gpt(pergunta, pergunta_id, messages):
     url = "https://api.openai.com/v1/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": "Bearer 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"
+        "Authorization": "Bearer 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"
     }
 
     # Adiciona a pergunta atual
@@ -241,7 +244,7 @@ def perguntar_gpt(pergunta, pergunta_id, messages):
 
             return response.json()['choices'][0]['message']['content'], messages
         except requests.exceptions.HTTPError as e:
-            if e.response.status_code in (429, 520):  # Limite de requisições atingido ou erro de servidor
+            if e.response.status_code in (429, 520, 502, 503):  # Limite de requisições atingido ou erro de servidor
                 print(f"Erro {e.response.status_code} atingido. Aguardando antes de tentar novamente...")
                 time.sleep(backoff_time)  # Aguarda antes de tentar novamente
                 backoff_time *= 2  # Aumenta o tempo de espera
@@ -273,22 +276,27 @@ def visualizar_planejamento_atual(id_empresa):
     return render_template('visualizar_planejamento.html', respostas=respostas)
 
 
+def convert_string_to_datetime(date_string):
+    return datetime.strptime(date_string, '%Y-%m-%d')
+
 @app.route('/cadastrar/okr', methods=['GET', 'POST'])
 def cadastrar_okr():
     if request.method == 'POST':
-        okr = OKR(
-            id_empresa=request.form.get('empresa'),
-            objetivo_1=request.form.get('objetivo_1'),
-            objetivo_2=request.form.get('objetivo_2'),
-            objetivo_3=request.form.get('objetivo_3'),
-            objetivo_4=request.form.get('objetivo_4'),
-            objetivo_5=request.form.get('objetivo_5'),
-        )
-        db.session.add(okr)
-        db.session.commit()
-        return redirect(url_for('listar_okrs'))  # Redireciona para a página de listagem de OKRs
+        try:
+            okr = OKR(
+                id_empresa=request.form.get('empresa'),
+                objetivo=request.form.get('objetivo'),
+                data_inicio=convert_string_to_datetime(request.form.get('data_inicio')),
+                data_fim=convert_string_to_datetime(request.form.get('data_fim')),
+            )
+            db.session.add(okr)
+            db.session.commit()
+            return redirect(url_for('listar_okrs'))  # Redireciona para a página de listagem de OKRs
+        except ValueError:
+            flash('A data fornecida é inválida. Use o formato YYYY-MM-DD.', 'error')
     empresas = Empresa.query.all()
     return render_template('cadastrar_okr.html', empresas=empresas)
+
 
 @app.route('/listar/okrs', methods=['GET'])
 def listar_okrs():
@@ -301,18 +309,22 @@ def atualizar_okr(id):
     okr = OKR.query.get(id)
     empresas = Empresa.query.all()
     if request.method == 'POST':
-        okr.objetivo_1 = request.form['objetivo_1']
-        okr.objetivo_2 = request.form['objetivo_2']
-        okr.objetivo_3 = request.form['objetivo_3']
-        okr.objetivo_4 = request.form['objetivo_4']
-        okr.objetivo_5 = request.form['objetivo_5']
+        okr.id_empresa = request.form['empresa']
+        okr.objetivo = request.form['objetivo']
+        okr.data_inicio = datetime.strptime(request.form['data_inicio'], "%Y-%m-%d")
+        okr.data_fim = datetime.strptime(request.form['data_fim'], "%Y-%m-%d")
         db.session.commit()
         return redirect(url_for('listar_okrs'))
     return render_template('atualizar_okr.html', okr=okr, empresas=empresas)
 
+
+
+
 @app.route('/deletar/okr/<int:id>', methods=['POST'])
 def deletar_okr(id):
     okr = OKR.query.get(id)
+    for kr in okr.krs:
+        db.session.delete(kr)
     db.session.delete(okr)
     db.session.commit()
     return redirect(url_for('listar_okrs'))
@@ -324,18 +336,28 @@ def listar_krs():
     krs = KR.query.all()
     return render_template('listar_krs.html', krs=krs)
 
+
+
 @app.route('/cadastrar/kr', methods=['GET', 'POST'])
 def cadastrar_kr():
     if request.method == 'POST':
-        id_empresa = request.form['empresa']
-        id_objetivo = request.form['objetivo']  # Altere 'okr' para 'objetivo'
+        id_empresa = int(request.form.get('empresa', '0'))  # Obtenha o valor do campo 'empresa' como uma string e converta-o para um inteiro
+        id_okr = int(request.form.get('objetivo', '0'))  # Obtenha o valor do campo 'objetivo' como uma string e converta-o para um inteiro
         texto = request.form['texto']
-        kr = KR(id_empresa=id_empresa, id_objetivo=id_objetivo, texto=texto)
+
+        # Obtenha a instância OKR e atribua-a ao KR.
+        okr = OKR.query.get(id_okr)
+        if okr is None:
+            return "OKR não encontrado", 404
+
+        kr = KR(id_empresa=id_empresa, id_okr=id_okr, texto=texto, data_inclusao=datetime.utcnow())
         db.session.add(kr)
         db.session.commit()
         return redirect(url_for('listar_krs'))
+
     empresas = Empresa.query.all()
     return render_template('cadastrar_kr.html', empresas=empresas)
+
 
 
 
@@ -343,14 +365,59 @@ def cadastrar_kr():
 def atualizar_kr(id):
     kr = KR.query.get(id)
     if request.method == 'POST':
-        kr.id_okr = request.form['okr']
-        kr.texto = request.form['texto']
+        id_empresa = request.form['empresa']
+        id_okr = request.form['okr']
+        texto = request.form['texto']
+
+        # Obtenha a instância OKR e atribua-a ao KR.
+        okr = OKR.query.get(id_okr)
+        kr.okr = okr
+        kr.id_empresa = id_empresa  # Atualize o id da empresa
+        kr.texto = texto
         db.session.commit()
         return redirect(url_for('listar_krs'))
-        pass
-    else:
-        empresas = Empresa.query.all()
-        return render_template('cadastrar_kr.html', empresas=empresas)
+
+    empresas = Empresa.query.all()
+    okrs = OKR.query.filter_by(id_empresa=kr.id_empresa).all()
+
+    return render_template('atualizar_kr.html', empresas=empresas, kr=kr, okrs=okrs)
+
+
+
+
+@app.route('/update_kr/<int:krId>', methods=['POST'])
+def update_kr(krId):
+    okrId = request.form['objetivo']  # assumindo que isso retorna um id de OKR
+    kr = KR.query.get(krId)
+
+    # Obtenha a instância OKR e atribua-a ao KR.
+    okr = OKR.query.get(okrId)
+    if okr is None:
+        return "OKR não encontrado", 404
+    kr.okr = okr
+
+    db.session.commit()
+    return 'OK', 200
+
+
+
+@app.route('/get_okrs/<int:empresa_id>', methods=['GET'])
+def get_okrs(empresa_id):
+    empresa = Empresa.query.get(empresa_id)
+    if not empresa:
+        abort(404)  # Retorna um erro 404 se a empresa não for encontrada
+    okrs = OKR.query.filter_by(id_empresa=empresa.id).all()
+
+    # Converte a lista de OKRs em uma lista de dicionários para poder ser serializada em JSON
+    okrs_dict = []
+    for okr in okrs:
+        okrs_dict.append({'id': okr.id, 'objetivo': okr.objetivo})
+
+    return jsonify(okrs_dict)
+
+
+
+
 @app.route('/deletar/kr/<int:id>', methods=['POST'])
 def deletar_kr(id):
     kr = KR.query.get(id)
@@ -361,13 +428,426 @@ def deletar_kr(id):
 @app.route('/get_objectives/<int:empresa_id>', methods=['GET'])
 def get_objectives(empresa_id):
     okrs = OKR.query.filter_by(id_empresa=empresa_id).all()
-    objectives = []
-    for okr in okrs:
-        for i in range(1, 6):
-            objetivo = getattr(okr, f'objetivo_{i}')
-            if objetivo:
-                objectives.append({'id': okr.id, 'objetivo': objetivo})
+    objectives = [{'id': okr.id, 'objetivo': okr.objetivo} for okr in okrs]
     return jsonify(objectives)
+
+
+
+@app.route('/listar_macro_acao')
+def listar_macro_acao():
+    krs = KR.query.all()  # Busca todos os KR do banco de dados
+    return render_template('listar_macro_acao.html', krs=krs)
+
+
+@app.route('/gerar_macro_acao/<int:id>', methods=['GET', 'POST'])
+def gerar_macro_acao(id):
+    time_now = datetime.utcnow()  # Salve o horário atual
+    kr = KR.query.get(id)  # Busca o KR específico pelo id
+    if kr is None:
+        return redirect(url_for('listar_macro_acao'))  # Se o KR não existir, redireciona para a lista
+
+    if request.method == 'POST':
+        # Gera a pergunta para o GPT-4
+        pergunta = f"Considerando o Key Result {kr.texto} definidos para o objetivo: {kr.okr.objetivo} para a empresa {kr.okr.empresa.descricao_empresa} para os próximos 90 dias, eu gostaria que você gerasse uma lista de macro ações estratégicas necessárias para alcançar esses KRs. Depois de gerar essa lista, por favor, organize as ações em ordem de prioridade, levando em consideração a eficiência e a eficácia na realização dos KRs. Provide them in JSON format with the following keys: prioridade, acao."
+        messages = [{"role": "system", "content": "You are a helpful assistant."}]
+        resposta, messages = perguntar_gpt(pergunta, id, messages)
+
+        # Carrega a resposta JSON
+        resposta_dict = json.loads(resposta)
+        # Verifica se a resposta é uma lista ou um dicionário com a chave 'acoes'
+        if isinstance(resposta_dict, list):
+            macro_acoes = resposta_dict
+        elif 'acoes' in resposta_dict:
+            macro_acoes = resposta_dict['acoes']
+        else:
+            raise ValueError("Resposta inesperada: não é uma lista nem contém a chave 'acoes'")
+
+        # Adiciona um ID a cada ação
+        for i, acao in enumerate(macro_acoes, start=1):
+            acao['id'] = i
+
+            # Cria uma nova entrada em MacroAcao para cada ação na resposta
+            macro_acao = MacroAcao(
+                texto=acao['acao'],
+                aprovada=False,  # Inicialmente, a ação não é aprovada
+                kr_id=id,
+                objetivo=kr.okr.objetivo,
+                objetivo_id=kr.okr.id,  # Alteramos de kr.okr_id para kr.okr.id
+                empresa=kr.okr.empresa.nome_contato,
+                empresa_id=kr.okr.empresa.id  # Alteramos de kr.okr.empresa_id para kr.okr.empresa.id
+            )
+
+            # Salva a nova entrada no banco de dados
+            db.session.add(macro_acao)
+        db.session.commit()
+
+        # Armazena a resposta, as macro ações e o id do KR na sessão
+        session['resposta'] = resposta
+        session['macro_acoes'] = macro_acoes
+        session['kr_id'] = id
+
+        print(resposta)
+        print(type(resposta_dict))
+        print(resposta_dict)
+
+        # Redireciona para a página de resultados
+        return redirect(url_for('mostrar_resultados', kr_id=id))  # Adicionamos o parâmetro kr_id
+
+    return render_template('gerar_macro_acao.html', kr=kr)
+
+
+
+
+
+@app.route('/mostrar_resultados/<int:kr_id>')
+def mostrar_resultados(kr_id):
+    kr = KR.query.get(kr_id)  # Busca o KR novamente do banco de dados
+
+    # Busca as macro ações no banco de dados e as ordena por data_inclusao (descendente)
+    macro_acoes = MacroAcao.query.filter_by(kr_id=kr_id, aprovada=False)\
+                      .order_by(MacroAcao.data_inclusao.desc())\
+                      .all()  # Remova `.all()` e adicione `.first()` para obter apenas a mais recente ou `.limit(n)` para as `n` mais recentes
+
+    return render_template('mostrar_resultados.html', macro_acoes=macro_acoes, kr=kr)
+
+
+
+
+
+@app.route('/atualizar_macro_acao/<int:id>', methods=['GET', 'POST'])
+def atualizar_macro_acao(id):
+    macro_acao = MacroAcao.query.get(id)
+    if request.method == 'POST':
+        macro_acao.texto = request.form['texto']
+        macro_acao.aprovada = True if request.form['aprovada'] == 'sim' else False
+        db.session.commit()
+        return redirect(url_for('listar_macro_acoes_aprovadas'))
+    return render_template('atualizar_macro_acao.html', acao=macro_acao)
+
+
+@app.route('/deletar_macro_acao/<int:id>', methods=['GET'])
+def deletar_macro_acao(id):
+    macro_acao = MacroAcao.query.get(id)
+    db.session.delete(macro_acao)
+    db.session.commit()
+    return redirect(url_for('listar_macro_acoes_aprovadas'))
+
+
+@app.route('/listar_macro_acoes_aprovadas', methods=['GET'])
+def listar_macro_acoes_aprovadas():
+    macro_acoes = MacroAcao.query.all()
+    return render_template('listar_macro_acoes_aprovadas.html', macro_acoes=macro_acoes)
+
+
+@app.route('/montagem_sprint_semana')
+def montagem_sprint_semana():
+    empresas = Empresa.query.all()
+    return render_template('montagem_sprint_semana.html', empresas=empresas)
+
+@app.route('/get_objetivos/<int:empresa_id>')
+def get_objetivos(empresa_id):
+    objetivos = OKR.query.filter_by(id_empresa=empresa_id).all()
+    return jsonify([{'id': objetivo.id, 'objetivo': objetivo.objetivo} for objetivo in objetivos])
+
+
+@app.route('/get_krs/<int:objetivo_id>')
+def get_krs(objetivo_id):
+    krs = KR.query.filter_by(id_okr=objetivo_id).all()
+    return jsonify([{'id': kr.id, 'texto': kr.texto} for kr in krs])
+
+
+
+
+@app.route('/get_empresa_info/<int:empresa_id>', methods=['GET'])
+def get_empresa_info(empresa_id):
+    empresa = Empresa.query.get(empresa_id)
+    okrs = OKR.query.filter_by(id_empresa=empresa_id).all()
+    krs = KR.query.filter_by(id_empresa=empresa_id).all()
+    macro_acoes = MacroAcao.query.filter_by(empresa_id=empresa_id).all()
+    usuarios = Usuario.query.filter_by(id_empresa=empresa_id).all()
+
+    empresa_info = {
+        'descricao_empresa': empresa.descricao_empresa,
+        'objetivos': [okr.objetivo for okr in okrs],
+        'krs': [kr.texto for kr in krs],
+        'macro_acoes': [acao.texto for acao in macro_acoes],
+        'usuarios': [f"{usuario.nome} {usuario.sobrenome}, {usuario.cargo}" for usuario in usuarios]
+    }
+
+    return jsonify(empresa_info)
+
+
+@app.route('/get_descricao_sprint/<int:empresa_id>')
+def get_descricao_sprint(empresa_id):
+    empresa = Empresa.query.get(empresa_id)
+    return jsonify(descricao=empresa.descricao_empresa)
+
+@app.route('/get_cargos_sprint/<int:empresa_id>')
+def get_cargos_sprint(empresa_id):
+    usuarios = Usuario.query.filter_by(id_empresa=empresa_id)
+    return jsonify([usuario.cargo for usuario in usuarios])
+
+@app.route('/get_okrs_sprint/<int:empresa_id>')
+def get_okrs_sprint(empresa_id):
+    okrs = OKR.query.filter_by(id_empresa=empresa_id)
+    return jsonify([okr.objetivo for okr in okrs])
+
+@app.route('/get_krs_sprint/<int:empresa_id>')
+def get_krs_sprint(empresa_id):
+    krs = KR.query.filter_by(id_empresa=empresa_id)
+    return jsonify([kr.texto for kr in krs])
+
+@app.route('/get_macro_acoes_sprint/<int:empresa_id>')
+def get_macro_acoes_sprint(empresa_id):
+    macro_acoes = MacroAcao.query.filter_by(id_empresa=empresa_id)
+    return jsonify([macro_acao.texto for macro_acao in macro_acoes])
+
+
+@app.route('/criar_sprint_semana', methods=['GET', 'POST'])
+def criar_sprint_semana():
+    if request.method == 'POST':
+        # Coletar informações da empresa
+        empresa_id = request.form.get('empresa')
+        empresa = db.session.get(Empresa, empresa_id)  # Obter a empresa pelo ID
+        if empresa is None:
+            return redirect(url_for('montagem_sprint_semana'))  # Se a empresa não existir, redirecionar
+
+        # Obter as macro ações associadas à empresa
+        macro_acoes = MacroAcao.query.filter_by(empresa_id=empresa.id).all()
+
+        # Obter os OKRs e usuários associados à empresa
+        okrs = OKR.query.filter_by(id_empresa=empresa.id).all()
+        usuarios = Usuario.query.filter_by(id_empresa=empresa.id).all()
+
+        # Formatar as listas como strings
+        macro_acoes_str = ', '.join([acao.texto for acao in macro_acoes])
+        okrs_str = ', '.join([okr.objetivo for okr in okrs])
+        usuarios_str = ', '.join([f'{usuario.nome} ({usuario.cargo})' for usuario in usuarios])
+
+        # Construir a pergunta para o GPT-4
+        pergunta = f"Inteligência Artificial GPT, considerando a lista de macro ações estratégicas geradas a partir dos OKRs {okrs_str} da empresa para os próximos 90 dias, as habilidades específicas dos colaboradores da equipe {usuarios_str}, peço que você desenvolva um plano de sprint para a próxima semana. Para ajudar a moldar esse plano, aqui estão as informações que você precisa considerar: Lista de macro ações: {macro_acoes_str}, Habilidades dos colaboradores: {usuarios_str}, Resumo sobre a empresa: {empresa.descricao_empresa}. Com base nessas informações, por favor, crie um plano de sprint que defina as tareas específicas a serem realizadas na próxima semana, priorizando as ações mais críticas e detalhando como essas tarefas suportam os OKRs definidos. Além disso, coloque o responsável por cada tarefa específica de acordo com a tarefa e o cargo dos colaboradores. Provide them in JSON format with the following keys: prioridade, tarefa, responsável."
+
+        messages = [{"role": "system", "content": "You are a helpful assistant."}]
+        resposta, messages = perguntar_gpt(pergunta, empresa_id, messages)
+
+        # Encontra o início e o final do objeto JSON na resposta
+        inicio_json = resposta.find('[')
+        final_json = resposta.rfind(']')
+
+        # Se não encontramos um objeto JSON, lançamos um erro
+        if inicio_json == -1 or final_json == -1:
+            print(f"Erro ao decodificar JSON: não foi possível encontrar um objeto JSON na resposta")
+            print(f"Resposta: {resposta}")
+            return redirect(url_for('montagem_sprint_semana'))  # Se a decodificação falhar, redirecionar
+
+        json_str = resposta[inicio_json:final_json+1]
+
+        # Carrega a resposta JSON
+        try:
+            sprints = json.loads(json_str)
+        except json.JSONDecodeError as e:
+            print(f"Erro ao decodificar JSON: {str(e)}")
+            print(f"Resposta:{resposta}")
+
+            return redirect(url_for('montagem_sprint_semana'))  # Se a decodificação falhar, redirecionar
+
+        # Adiciona um ID a cada sprint e salva no banco de dados
+        for sprint in sprints:
+            if isinstance(sprint, dict):  # Verifica se o sprint é um dicionário
+                nome_usuario_responsavel = sprint.get('responsável', '')
+                usuario_responsavel = Usuario.query.filter_by(nome=nome_usuario_responsavel).first()
+                sprint_db = Sprint(
+                    empresa_id=empresa_id,
+                    nome_empresa=empresa.nome_contato,
+                    prioridade=sprint.get('prioridade', ''),  # Usa o método get para evitar KeyError
+                    tarefa=sprint.get('tarefa', ''),  # Usa o método get para evitar KeyError
+                    usuario=usuario_responsavel  # Usa o método get para evitar KeyError
+                )
+                db.session.add(sprint_db)
+            else:
+                print(f"Erro: esperava um dicionário, mas recebeu {type(sprint)}")
+        db.session.commit()
+
+        # Armazena a resposta, os sprints e o id da empresa na sessão
+        session['resposta'] = resposta
+        session['sprints'] = sprints
+        session['empresa_id'] = empresa_id
+
+        # Redireciona para a página de resultados
+        return redirect(url_for('resultado_sprint'))
+
+    # Renderiza o template de criação de sprint
+    return render_template('montagem_sprint_semana.html')
+
+
+
+
+
+
+
+@app.route('/resultado_sprint')
+def resultado_sprint():
+    if 'empresa_id' not in session:
+        return redirect(url_for('montagem_sprint_semana'))  # Se não há empresa, redirecionar
+
+    # Pegar o id da empresa da sessão
+    empresa_id = session['empresa_id']
+
+    # Remover o id da empresa da sessão
+    session.pop('empresa_id', None)
+
+    # Buscar os sprints do banco de dados
+    sprints = Sprint.query.filter_by(empresa_id=empresa_id).all()
+
+    return render_template('resultado_sprint.html', sprints=sprints, empresa_id=empresa_id)
+
+
+
+@app.route('/listar_sprints_semana', methods=['GET'])
+def listar_sprints_semana():
+    sprints = Sprint.query.all()
+    return render_template('listar_sprints_semana.html', sprints=sprints)
+
+
+@app.route('/atualizar_sprint/<int:id>', methods=['GET', 'POST'])
+def atualizar_sprint(id):
+    sprint = Sprint.query.get(id)
+    if request.method == 'POST':
+        tarefa = request.form.get('tarefa')
+        sprint.tarefa = tarefa
+        db.session.commit()
+        return redirect(url_for('listar_sprints_semana'))
+    return render_template('atualizar_sprint.html', sprint=sprint)
+
+@app.route('/deletar_sprint/<int:id>', methods=['GET', 'POST'])
+def deletar_sprint(id):
+    sprint = Sprint.query.get(id)
+    db.session.delete(sprint)
+    db.session.commit()
+    return redirect(url_for('listar_sprints_semana'))
+
+@app.route('/montagem_lista_usuario_sprint', methods=['GET', 'POST'])
+def montagem_lista_usuario_sprint():
+    if request.method == 'POST':
+        empresa_id = request.form.get('empresa')
+        usuarios = Usuario.query.filter_by(id_empresa=empresa_id).all()
+        return render_template('lista_usuario_sprint.html', usuarios=usuarios)
+    empresas = Empresa.query.all()
+    return render_template('montagem_lista_usuario_sprint.html', empresas=empresas)
+
+@app.route('/lista_usuario_sprint', methods=['GET', 'POST'])
+def lista_usuario_sprint():
+    if request.method == 'POST':
+        empresa_id = request.form.get('empresa')
+        usuarios = Usuario.query.filter_by(empresa_id=empresa_id).all()
+        return render_template('lista_usuario_sprint.html', usuarios=usuarios)
+    empresas = Empresa.query.all()
+    return render_template('selecionar_empresa.html', empresas=empresas)
+
+@app.route('/montar_tarefas_semana/<int:usuario_id>', methods=['GET', 'POST'])
+def montar_tarefas_semana(usuario_id):
+    usuario = Usuario.query.get(usuario_id)
+    empresa = Empresa.query.get(usuario.id_empresa)
+    okrs = OKR.query.filter_by(id_empresa=usuario.id_empresa).all()
+    krs = KR.query.filter_by(id_empresa=usuario.id_empresa).all()  # Adicionado aqui
+    macro_acoes = MacroAcao.query.filter_by(empresa_id=usuario.id_empresa).all()
+    sprints = Sprint.query.filter_by(usuario_id=usuario.id).all()
+
+    if request.method == 'POST':
+        # Aqui você pode iniciar o processo que mencionou
+        pass
+
+    return render_template('montar_tarefas_semana.html', empresa=empresa, usuario=usuario, okrs=okrs, macro_acoes=macro_acoes, sprints=sprints)
+
+
+@app.route('/iniciar_processo/<usuario_id>', methods=['POST'])
+def iniciar_processo(usuario_id):
+    usuario = Usuario.query.get(usuario_id)
+    if usuario is None:
+        return redirect(url_for('montagem_sprint_semana'))  # Se o usuário não existir, redirecionar
+
+    empresa = Empresa.query.get(usuario.id_empresa)
+    if empresa is None:
+        return redirect(url_for('montagem_sprint_semana'))  # Se a empresa não existir, redirecionar
+
+    okrs = OKR.query.filter_by(id_empresa=empresa.id).all()
+    macro_acoes = MacroAcao.query.filter_by(empresa_id=empresa.id).all()
+    sprints = Sprint.query.filter_by(usuario_id=usuario.id).all()
+
+    # Formatar as listas como strings
+    okrs_str = ', '.join([okr.objetivo for okr in okrs])
+    macro_acoes_str = ', '.join([acao.texto for acao in macro_acoes])
+    sprints_str = ', '.join([f'{sprint.tarefa} - Criado em: {sprint.data_criacao}' for sprint in sprints])
+
+    # Construir a pergunta para o GPT-4
+    pergunta = f"Inteligência Artificial GPT, considerando a lista de macro ações estratégicas geradas a partir dos OKRs {okrs_str}, Resumo sobre a empresa: {empresa.descricao_empresa} e a Lista de macro ações: {macro_acoes_str}, o sprint da semana para o colaborador {usuario.nome} {usuario.cargo} é {sprints_str}. Peço que você desenvolva um plano de sprint específico para esse usuario OBSERVANDO O RELACIONAMENTO DE IMPACTO DE MACRO AÇÕES QUE POSSA INFLUENCIAR A PRIORIZAÇÃO DE AÇÕES OU DE PROGRAMAÇÃO DA AGENDA DO COLABORADOR {usuario.nome} para a próxima semana. Defina quais as tarefas devem ser realizadas durante a proxima semana para esse usuário. Provide them in JSON format with the following keys: tarefa_semana, usuario, data_para_conclusão."
+
+    # Substituir perguntar_gpt pela função real
+    # Resposta da GPT-4
+    resposta, messages = perguntar_gpt(pergunta, empresa.id, [])
+    print("Resposta do GPT-4:", resposta)
+
+    # Encontra o início e o final do objeto JSON na resposta
+    inicio_json = resposta.find('[')
+    final_json = resposta.rfind(']')
+
+    # Se não encontramos um objeto JSON, lançamos um erro
+    if inicio_json == -1 or final_json == -1:
+        print(f"Erro ao decodificar JSON: não foi possível encontrar um objeto JSON na resposta")
+        print(f"Resposta: {resposta}")
+        return redirect(url_for('montagem_sprint_semana'))  # Se a decodificação falhar, redirecionar
+
+    json_str = resposta[inicio_json:final_json + 1]
+
+    # Carrega a resposta JSON
+    try:
+        sprints = json.loads(json_str)
+    except json.JSONDecodeError as e:
+        print(f"Erro ao decodificar JSON: {str(e)}")
+        print(f"Resposta:{resposta}")
+
+        return redirect(url_for('montagem_sprint_semana'))  # Se a decodificação falhar, redirecionar
+
+    # Adiciona um ID a cada sprint e salva no banco de dados
+    for sprint in sprints:
+        if isinstance(sprint, dict):  # Verifica se o sprint é um dicionário
+            if 'tarefa' in sprint:
+                sprint['tarefa_semana'] = sprint.pop('tarefa')  # Renomeia a chave 'tarefa' para 'tarefa_semana'
+            tarefa_semana = sprint.get('tarefa_semana', '')  # Usa o método get para evitar KeyError
+            data_para_conclusao_str = sprint.get('data_para_conclusão', '')  # Usa o método get para evitar KeyError
+
+            # Convert a string de data para datetime
+            if data_para_conclusao_str:
+                data_para_conclusao = datetime.strptime(data_para_conclusao_str, '%Y-%m-%d')
+            else:
+                data_para_conclusao = None
+
+            if tarefa_semana and data_para_conclusao:  # Somente crie a TarefaSemanal se os campos forem não nulos
+                tarefa_semanal_db = TarefaSemanal(
+                    empresa_id=empresa.id,  # Adicionado aqui
+                    usuario_id=usuario_id,
+                    tarefa_semana=tarefa_semana,
+                    data_para_conclusao=data_para_conclusao
+                )
+                db.session.add(tarefa_semanal_db)
+        else:
+            print(f"Erro: esperava um dicionário, mas recebeu {type(sprint)}")
+    db.session.commit()
+
+    # Armazena a resposta e os sprints na sessão
+    session['resposta'] = resposta
+    session['sprints'] = sprints
+
+    # Redireciona para a página de resultados
+    return redirect(url_for('resultado_sprint'))
+
+
+@app.route('/listar_tarefas_semanais_usuario', methods=['GET'])
+def listar_tarefas_semanais_usuario():
+    tarefas_semanais = TarefaSemanal.query.all()
+    return render_template('listar_tarefas_semanais_usuario.html', tarefas_semanais=tarefas_semanais)
+
+
 
 
 if __name__ == '__main__':

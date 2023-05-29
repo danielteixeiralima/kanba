@@ -17,6 +17,9 @@ class Empresa(db.Model):
     historico_interacoes = db.Column(db.Text)
 
 
+
+
+
 class Resposta(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     id_empresa = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
@@ -49,16 +52,61 @@ class OKR(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     id_empresa = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
     empresa = db.relationship('Empresa', backref='okrs')
-    objetivo_1 = db.Column(db.String(200))
-    objetivo_2 = db.Column(db.String(200))
-    objetivo_3 = db.Column(db.String(200))
-    objetivo_4 = db.Column(db.String(200))
-    objetivo_5 = db.Column(db.String(200))
+    objetivo = db.Column(db.String(200))
+    data_inicio = db.Column(db.DateTime, nullable=False)
+    data_fim = db.Column(db.DateTime, nullable=False)
+
 
 
 
 class KR(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    id_empresa = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
     id_okr = db.Column(db.Integer, db.ForeignKey('okr.id'), nullable=False)
     texto = db.Column(db.String(200))
+    data_inclusao = db.Column(db.DateTime, default=datetime.utcnow)  # Novo campo
     okr = db.relationship('OKR', backref='krs')
+
+
+
+
+class MacroAcao(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    texto = db.Column(db.String(500), nullable=False)
+    aprovada = db.Column(db.Boolean, default=False)
+    data_inclusao = db.Column(db.DateTime, default=datetime.utcnow)
+    kr_id = db.Column(db.Integer, db.ForeignKey('kr.id'), nullable=False)
+    objetivo = db.Column(db.String(500), nullable=False)
+    objetivo_id = db.Column(db.Integer, nullable=False)
+    empresa = db.Column(db.String(500), nullable=False)
+    empresa_id = db.Column(db.Integer, nullable=False)
+    kr = db.relationship('KR', backref='macro_acoes')
+
+
+
+class Sprint(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
+    nome_empresa = db.Column(db.String(120), nullable=False)
+    prioridade = db.Column(db.Integer, nullable=False)
+    tarefa = db.Column(db.Text, nullable=False)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=True)  # Alterado para nullable=True
+    usuario = db.relationship('Usuario', backref='sprints')
+    usuario_grupo = db.Column(db.String(120), nullable=True)  # Novo campo
+    data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class TarefaSemanal(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
+    empresa = db.relationship('Empresa', backref='tarefas_semanais')  # Adicione esta linha
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=False)
+    usuario = db.relationship('Usuario', backref='tarefas_semanais')  # Nova linha
+    tarefa_semana = db.Column(db.String(500), nullable=False)
+    data_para_conclusao = db.Column(db.DateTime, nullable=False)
+    data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
+    data_atualizacao = db.Column(db.DateTime, onupdate=datetime.utcnow)
+
+
+
+
