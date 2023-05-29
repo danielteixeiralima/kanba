@@ -1,6 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
-
+from flask import json
 
 db = SQLAlchemy()
 
@@ -99,13 +99,20 @@ class Sprint(db.Model):
 class TarefaSemanal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
-    empresa = db.relationship('Empresa', backref='tarefas_semanais')  # Adicione esta linha
+    empresa = db.relationship('Empresa', backref='tarefas_semanais')
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=False)
-    usuario = db.relationship('Usuario', backref='tarefas_semanais')  # Nova linha
+    usuario = db.relationship('Usuario', backref='tarefas_semanais')
     tarefa_semana = db.Column(db.String(500), nullable=False)
+    to_do = db.Column(db.String(500), nullable=True)  # JSON string contendo os passos e datas
+    observacoes = db.Column(db.String(500), nullable=True)  # JSON string contendo as observações para cada passo
     data_para_conclusao = db.Column(db.DateTime, nullable=False)
     data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
     data_atualizacao = db.Column(db.DateTime, onupdate=datetime.utcnow)
+
+    @property
+    def to_do_decoded(self):
+        return json.loads(self.to_do)
+
 
 
 

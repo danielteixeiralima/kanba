@@ -36,8 +36,10 @@ $(document).ready(function(){
 
 
 function updateObjectives() {
+var objetivoOriginal = $('#objetivo').data('original');
     var empresaId = $('#empresa').val();
-    var objetivoOriginal = $('#objetivo').data('original');
+
+
     $.getJSON('/get_okrs/' + empresaId, function(data) {
         var select = $('#objetivo');
         select.empty();

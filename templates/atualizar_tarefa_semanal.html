@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Atualizar Tarefa Semanal</h1>
+    <form method="POST">
+        <label for="tarefa_semana">Tarefa da Semana:</label>
+        <input type="text" id="tarefa_semana" name="tarefa_semana" value="{{ tarefa.tarefa_semana }}">
+        <label for="data_para_conclusao">Data para Conclusão:</label>
+        <input type="date" id="data_para_conclusao" name="data_para_conclusao" value="{{ tarefa.data_para_conclusao }}">
+        {% for i in range(1, 7) %}
+        <label for="passo{{i}}">Passo {{i}}:</label>
+        <input type="text" id="passo{{i}}" name="passo{{i}}" value="{{ tarefa.to_do_decoded['passos'][i-1] }}">
+        <label for="data{{i}}">Data {{i}}:</label>
+        <input type="date" id="data{{i}}" name="data{{i}}" value="{{ tarefa.to_do_decoded['datas'][i-1] }}">
+        {% endfor %}
+        <input type="submit" value="Atualizar">
+    </form>
+{% endblock %}

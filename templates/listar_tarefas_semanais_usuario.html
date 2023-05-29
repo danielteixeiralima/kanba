@@ -7,9 +7,21 @@
             <tr>
                 <th>ID</th>
                 <th>Empresa ID</th>
-                <th>Usuário</th> <!-- Nova coluna -->
+                <th>Usuário</th>
                 <th>Tarefa Semana</th>
                 <th>Data para Conclusão</th>
+                <th>Passo 1</th>
+                <th>Data 1</th>
+                <th>Passo 2</th>
+                <th>Data 2</th>
+                <th>Passo 3</th>
+                <th>Data 3</th>
+                <th>Passo 4</th>
+                <th>Data 4</th>
+                <th>Passo 5</th>
+                <th>Data 5</th>
+                <th>Passo 6</th>
+                <th>Data 6</th>
                 <th>Data de Criação</th>
                 <th>Data de Atualização</th>
                 <th>Ações</th>
@@ -18,16 +30,32 @@
         <tbody>
             {% for tarefa in tarefas_semanais %}
             <tr>
-                <td>{{ tarefa.id }}</td>
-                <td>{{ tarefa.empresa_id }}</td>
-                <td>{{ tarefa.usuario.nome }}</td> <!-- Nova célula -->
-                <td>{{ tarefa.tarefa_semana }}</td>
-                <td>{{ tarefa.data_para_conclusao }}</td>
-                <td>{{ tarefa.data_criacao }}</td>
-                <td>{{ tarefa.data_atualizacao }}</td>
+                <td>{{ tarefa['id'] }}</td>
+                <td>{{ tarefa['empresa_id'] }}</td>
+                <td>{{ tarefa['usuario'] }}</td>
+                <td>{{ tarefa['tarefa_semana'] }}</td>
+                <td>{{ tarefa['data_para_conclusao'] }}</td>
+                <td>{{ tarefa['to_do_decoded']['passos'][0] }}</td>
+                <td>{{ tarefa['to_do_decoded']['datas'][0] }}</td>
+                <td>{{ tarefa['to_do_decoded']['passos'][1] }}</td>
+                <td>{{ tarefa['to_do_decoded']['datas'][1] }}</td>
+                <td>{{ tarefa['to_do_decoded']['passos'][2] }}</td>
+                <td>{{ tarefa['to_do_decoded']['datas'][2] }}</td>
+                <td>{{ tarefa['to_do_decoded']['passos'][3] }}</td>
+                <td>{{ tarefa['to_do_decoded']['datas'][3] }}</td>
+                <td>{{ tarefa['to_do_decoded']['passos'][4] }}</td>
+                <td>{{ tarefa['to_do_decoded']['datas'][4] }}</td>
+                <td>{{ tarefa['to_do_decoded']['passos'][5] }}</td>
+                <td>{{ tarefa['to_do_decoded']['datas'][5] }}</td>
+                <td>{{ tarefa['data_criacao'] }}</td>
+                <td>{{ tarefa['data_atualizacao'] }}</td>
                 <td>
-                    <a href="#" class="btn btn-primary">Atualizar</a>
-                    <a href="#" class="btn btn-danger">Deletar</a>
+                    <form action="{{ url_for('atualizar_tarefa_semanal', id=tarefa['id']) }}" method="GET">
+                        <input type="submit" value="Atualizar" class="btn btn-primary">
+                    </form>
+                    <form action="{{ url_for('deletar_tarefa_semanal', id=tarefa['id']) }}" method="POST">
+                        <input type="submit" value="Deletar" class="btn btn-danger">
+                    </form>
                 </td>
             </tr>
             {% endfor %}
