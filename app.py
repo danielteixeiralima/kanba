@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, abort, flash
-from models import db, Empresa, Resposta, Usuario, OKR, KR, MacroAcao, Sprint, TarefaSemanal
+from models import db, Empresa, Resposta, Usuario, OKR, KR, MacroAcao, Sprint, TarefaSemanal, LoginForm
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required  # importações do Flask-Login
 import requests
 import json
 import time
@@ -8,23 +9,65 @@ from flask import jsonify
 from datetime import datetime
 
 
-
-
-
 app = Flask(__name__)
 app.secret_key = 'Omega801'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\USER\\PycharmProjects\\bizarte\\test.db'
 migrate = Migrate(app, db)
-
-
 db.init_app(app)
 
+login_manager = LoginManager()  # Cria uma instância do gerenciador de login
+login_manager.init_app(app)  # Inicializa o gerenciador de login com o app
+login_manager.login_view = "login"  # Define a rota de login
+
+# Função de callback para recarregar o usuário do ID de sessão armazenado
+@login_manager.user_loader
+def load_user(user_id):
+    return Usuario.query.get(int(user_id))
 
 def json_loads(value):
     return json.loads(value)
 
 app.jinja_env.globals.update(json=json)
 
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required
+
+# Inicializando o gerenciador de login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"  # Nome da rota de login
+
+# Atualizando a classe User para incluir UserMixin, que inclui métodos padrão usados pelo Flask-Login
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(120), nullable=False)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user and user.password == form.password.data:
+            login_user(user)
+            return redirect(url_for('dashboard'))
+        else:
+            return 'Invalid username or password'
+    return render_template('login.html', form=form)
+
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    return "Welcome to the dashboard!"
 
 @app.route('/')
 def home():
@@ -144,7 +187,7 @@ def planejamento_redes():
         # Inicializar a lista de perguntas
         session['perguntas'] = [
             f"Agora você é um especialista de redes sociais dessa empresa: {empresa.descricao_empresa}",
-            "Monte uma persona para esse negocio com a dores, objetivos e interesses?",
+            "Monte uma persona para esse negocio {empresa.descricao_empresa} com a dores, objetivos e interesses?",
             "Passe um entendimento de como esse perfil se comportam nas redes sociais e como eles consomem conteudo?",
             "Crie o publico alvo para as redes sociais desse negocio?",
             "Defina quais são os objetivos desse negocio para as redes sociais?",
@@ -229,7 +272,7 @@ def perguntar_gpt(pergunta, pergunta_id, messages):
     url = "https://api.openai.com/v1/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": "Bearer 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"
+        "Authorization": "Bearer API_KEY_GPT_4"
     }
 
     # Adiciona a pergunta atual

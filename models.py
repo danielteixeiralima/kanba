@@ -1,6 +1,11 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from flask import json
+from flask_wtf import FlaskForm
+from wtforms import StringField, PasswordField, SubmitField
+from wtforms.validators import DataRequired
+
+
 
 db = SQLAlchemy()
 
@@ -114,6 +119,9 @@ class TarefaSemanal(db.Model):
         return json.loads(self.to_do)
 
 
-
+class LoginForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    submit = SubmitField('Login')
 
 
