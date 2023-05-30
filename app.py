@@ -1016,12 +1016,73 @@ def cadastrar_sprint():
     return render_template('cadastrar_sprint.html', empresas=empresas, usuarios=usuarios)
 
 
-
-
 @app.route('/get_usuarios/<int:empresa_id>')
 def get_usuarios(empresa_id):
     usuarios = Usuario.query.filter_by(id_empresa=empresa_id).all()
     return jsonify([{'id': usuario.id, 'nome': usuario.nome} for usuario in usuarios])
+
+
+from datetime import datetime
+
+from datetime import datetime
+
+from datetime import datetime
+
+@app.route('/cadastrar/tarefa_semanal', methods=['GET', 'POST'])
+def cadastrar_tarefa_semanal():
+    if request.method == 'POST':
+        id_empresa = int(request.form.get('empresa', '0'))
+        id_usuario = int(request.form.get('usuario', '0'))
+        tarefa_semana = request.form['tarefa_semana']
+        data_para_conclusao_str = request.form['data_para_conclusao']
+
+        empresa = Empresa.query.get(id_empresa)
+        usuario = Usuario.query.get(id_usuario)
+
+        if empresa is None or usuario is None:
+            return "Empresa ou Usuário não encontrado", 404
+
+        # Converta a string da data para um objeto datetime
+        data_para_conclusao = datetime.strptime(data_para_conclusao_str, '%Y-%m-%d')
+
+        passos = []
+        datas = []
+        i = 0
+        while True:
+            passo_key = 'passo_' + str(i)
+            data_key = 'data_' + str(i)
+            if passo_key in request.form:
+                passo = request.form[passo_key]
+                data_str = request.form[data_key]
+
+                # Converta a string da data para um objeto datetime
+                data = datetime.strptime(data_str, '%Y-%m-%d')
+
+                passos.append(passo)
+                datas.append(data.strftime('%Y-%m-%d'))  # Converta o objeto datetime para uma string
+                i += 1
+            else:
+                break
+
+        to_do = json.dumps({"passos": passos, "datas": datas})
+
+        tarefa_semanal = TarefaSemanal(
+            empresa_id=empresa.id,
+            usuario_id=usuario.id,
+            tarefa_semana=tarefa_semana,
+            to_do=to_do,
+            data_para_conclusao=data_para_conclusao,
+        )
+        db.session.add(tarefa_semanal)
+        db.session.commit()
+        return redirect(url_for('listar_tarefas_semanais_usuario'))
+
+    empresas = Empresa.query.all()
+    usuarios = Usuario.query.all()
+    return render_template('cadastrar_tarefas_semanais_usuario.html', empresas=empresas, usuarios=usuarios)
+
+
+
 
 
 if __name__ == '__main__':

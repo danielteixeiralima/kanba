@@ -32,8 +32,20 @@ $(document).ready(function(){
             e.preventDefault();
         }
     });
-});
 
+    var toDoCount = 1;
+
+    $('#add_to_do').click(function() {
+        var newToDo = $('<input>');
+        newToDo.attr('type', 'text');
+        newToDo.attr('id', 'to_do_' + toDoCount);
+        newToDo.attr('name', 'to_do_' + toDoCount);
+
+        $('#to_do_container').append(newToDo);
+
+        toDoCount++;
+    });
+});
 function updateObjectives() {
     var objetivoOriginal = $('#objetivo').data('original');
     var empresaId = $('#empresa').val();
@@ -104,3 +116,35 @@ function updateUsers() {
         });
     });
 }
+document.getElementById('add_passo').addEventListener('click', function() {
+    var passosContainer = document.getElementById('passos_container');
+    var passoCount = passosContainer.getElementsByClassName('passo').length;
+
+    var newPasso = document.createElement('div');
+    newPasso.className = 'passo';
+
+    var passoLabel = document.createElement('label');
+    passoLabel.htmlFor = 'passo_' + passoCount;
+    passoLabel.textContent = 'Nome do Passo:';
+
+    var passoInput = document.createElement('input');
+    passoInput.type = 'text';
+    passoInput.id = 'passo_' + passoCount;
+    passoInput.name = 'passo_' + passoCount;
+
+    var dateLabel = document.createElement('label');
+    dateLabel.htmlFor = 'data_' + passoCount;
+    dateLabel.textContent = 'Data:';
+
+    var dateInput = document.createElement('input');
+    dateInput.type = 'date';
+    dateInput.id = 'data_' + passoCount;
+    dateInput.name = 'data_' + passoCount;
+
+    newPasso.appendChild(passoLabel);
+    newPasso.appendChild(passoInput);
+    newPasso.appendChild(dateLabel);
+    newPasso.appendChild(dateInput);
+
+    passosContainer.appendChild(newPasso);
+});
