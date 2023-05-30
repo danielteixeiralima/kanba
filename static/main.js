@@ -7,6 +7,8 @@ $(document).ready(function(){
 
     $('#empresa').change(function() {
         updateObjectives();
+        updateKRs();
+        updateUsers();
     });
 
     $('#objetivo').change(function() {
@@ -17,6 +19,7 @@ $(document).ready(function(){
 
     updateObjectives();
     updateKRs();
+    updateUsers();
 
     $('.btn-approve').click(function(e) {
         if (!confirm('Tem certeza de que deseja aprovar esta macro ação? Ela será inserida no banco de dados.')) {
@@ -73,9 +76,28 @@ function updateKRs() {
         select.empty();
         data.forEach(function(kr) {
             var option = $('<option>');
-            option.val(kr.id);  // Define o valor da opção para o ID do KR
+            option.val(kr.id);
             option.text(kr.texto);
             if (kr.id == krOriginal) {
+                option.prop('selected', true);
+            }
+            select.append(option);
+        });
+    });
+}
+
+function updateUsers() {
+    var usuarioOriginal = $('#usuario').data('original');
+    var empresaId = $('#empresa').val();
+
+    $.getJSON('/get_usuarios/' + empresaId, function(data) {
+        var select = $('#usuario');
+        select.empty();
+        data.forEach(function(usuario) {
+            var option = $('<option>');
+            option.val(usuario.id);
+            option.text(usuario.nome);
+            if (usuario.id == usuarioOriginal) {
                 option.prop('selected', true);
             }
             select.append(option);

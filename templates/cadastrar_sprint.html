@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Cadastrar Sprint da Semana</h1>
+    <form action="{{ url_for('cadastrar_sprint') }}" method="POST">
+        <label for="empresa">Empresa:</label><br>
+        <select id="empresa" name="empresa">
+            {% for empresa in empresas %}
+                <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
+            {% endfor %}
+        </select><br>
+        <label for="usuario">Usuário:</label><br>
+        <select id="usuario" name="usuario">
+            {% for usuario in usuarios %}
+                <option value="{{ usuario.id }}">{{ usuario.nome }}</option>
+            {% endfor %}
+        </select><br>
+        <label for="tarefa">Tarefa:</label><br>
+        <input type="text" id="tarefa" name="tarefa"><br>
+        <label for="prioridade">Prioridade:</label><br>
+        <input type="number" id="prioridade" name="prioridade" min="1" max="5"><br>
+
+        <input type="submit" value="Cadastrar">
+
+    </form>
+{% endblock %}

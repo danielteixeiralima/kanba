@@ -983,6 +983,47 @@ def cadastrar_macro_acao():
     return render_template('cadastrar_macro_acao.html', empresas=empresas, objetivos=objetivos, krs=krs)
 
 
+@app.route('/cadastrar/sprint', methods=['GET', 'POST'])
+def cadastrar_sprint():
+    if request.method == 'POST':
+        id_empresa = int(request.form.get('empresa', '0'))
+        id_usuario = int(request.form.get('usuario', '0'))
+        tarefa = request.form['tarefa']
+        prioridade = int(request.form.get('prioridade', '0'))
+
+        empresa = Empresa.query.get(id_empresa)
+        usuario = Usuario.query.get(id_usuario)
+
+        if empresa is None or usuario is None:
+            return "Empresa ou Usuário não encontrado", 404
+
+        sprint = Sprint(
+            nome_empresa=empresa.nome_contato,
+            empresa_id=empresa.id,
+            prioridade=prioridade,
+            tarefa=tarefa,
+            usuario_id=usuario.id,
+            usuario_grupo='',  # Definido como string vazia
+            data_criacao=datetime.utcnow()
+        )
+        db.session.add(sprint)
+        db.session.commit()
+        return redirect(url_for('listar_sprints_semana'))
+
+
+    empresas = Empresa.query.all()
+    usuarios = Usuario.query.all()
+    return render_template('cadastrar_sprint.html', empresas=empresas, usuarios=usuarios)
+
+
+
+
+@app.route('/get_usuarios/<int:empresa_id>')
+def get_usuarios(empresa_id):
+    usuarios = Usuario.query.filter_by(id_empresa=empresa_id).all()
+    return jsonify([{'id': usuario.id, 'nome': usuario.nome} for usuario in usuarios])
+
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
