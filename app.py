@@ -950,7 +950,37 @@ def deletar_tarefa_semanal(id):
     db.session.commit()
     return redirect(url_for('listar_tarefas_semanais_usuario'))
 
+@app.route('/cadastrar/macro_acao', methods=['GET', 'POST'])
+def cadastrar_macro_acao():
+    if request.method == 'POST':
+        id_empresa = int(request.form.get('empresa', '0'))
+        id_objetivo = int(request.form.get('objetivo', '0'))
+        id_kr = int(request.form.get('kr', '0'))
+        texto = request.form['texto']
 
+        empresa = Empresa.query.get(id_empresa)
+        objetivo = OKR.query.get(id_objetivo)
+        kr = KR.query.get(id_kr)
+
+        if empresa is None or objetivo is None or kr is None:
+            return "Empresa, Objetivo ou KR não encontrado", 404
+
+        macro_acao = MacroAcao(
+            texto=texto,
+            kr_id=kr.id,
+            objetivo=objetivo.objetivo,
+            objetivo_id=objetivo.id,
+            empresa=empresa.nome_contato,
+            empresa_id=empresa.id,
+        )
+        db.session.add(macro_acao)
+        db.session.commit()
+        return redirect(url_for('listar_macro_acao_aprovadas'))
+
+    empresas = Empresa.query.all()
+    objetivos = OKR.query.all()
+    krs = KR.query.all()
+    return render_template('cadastrar_macro_acao.html', empresas=empresas, objetivos=objetivos, krs=krs)
 
 
 if __name__ == '__main__':
