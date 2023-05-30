@@ -12,9 +12,11 @@ $(document).ready(function(){
     $('#objetivo').change(function() {
         var objetivoId = $(this).val();
         $('#id_okr').val(objetivoId);
+        updateKRs();
     });
 
     updateObjectives();
+    updateKRs();
 
     $('.btn-approve').click(function(e) {
         if (!confirm('Tem certeza de que deseja aprovar esta macro ação? Ela será inserida no banco de dados.')) {
@@ -59,5 +61,24 @@ function updateObjectives() {
         $('#okrs_div').text(data.objetivos.join(', '));
         $('#krs_div').text(data.krs.join(', '));
         $('#macroacoes_div').text(data.macro_acoes.join(', '));
+    });
+}
+
+function updateKRs() {
+    var krOriginal = $('#kr').data('original');
+    var objetivoId = $('#objetivo').val();
+
+    $.getJSON('/get_krs/' + objetivoId, function(data) {
+        var select = $('#kr');
+        select.empty();
+        data.forEach(function(kr) {
+            var option = $('<option>');
+            option.val(kr.id);  // Define o valor da opção para o ID do KR
+            option.text(kr.texto);
+            if (kr.id == krOriginal) {
+                option.prop('selected', true);
+            }
+            select.append(option);
+        });
     });
 }

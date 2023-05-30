@@ -975,7 +975,7 @@ def cadastrar_macro_acao():
         )
         db.session.add(macro_acao)
         db.session.commit()
-        return redirect(url_for('listar_macro_acao_aprovadas'))
+        return redirect(url_for('listar_macro_acoes_aprovadas'))  # Redirecionamento atualizado
 
     empresas = Empresa.query.all()
     objetivos = OKR.query.all()
