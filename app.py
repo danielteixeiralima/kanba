@@ -7,7 +7,10 @@ import time
 from flask_migrate import Migrate
 from flask import jsonify
 from datetime import datetime
+from dotenv import load_dotenv
+import os
 
+load_dotenv()  # Carrega as variáveis de ambiente do arquivo .env
 
 app = Flask(__name__)
 app.secret_key = 'Omega801'
@@ -272,7 +275,7 @@ def perguntar_gpt(pergunta, pergunta_id, messages):
     url = "https://api.openai.com/v1/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": "Bearer API_KEY_GPT_4"
+        "Authorization": "Bearer " + os.getenv("OPENAI_API_KEY")
     }
 
     # Adiciona a pergunta atual
