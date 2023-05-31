@@ -29,30 +29,32 @@ login_manager.login_view = 'login'
 
 @app.cli.command("create-admin")
 def create_admin():
-    nome = input('Enter name: ')
-    sobrenome = input('Enter last name: ')
-    email = input('Enter email: ')
-    celular = input('Enter phone number: ')
-    id_empresa = int(input('Enter company id: '))
-    cargo = input('Enter position: ')
-    status = input('Enter status: ')
-    password = input('Enter password: ')
+    with app.app_context():
+        nome = input('Enter name: ')
+        sobrenome = input('Enter last name: ')
+        email = input('Enter email: ')
+        celular = input('Enter phone number: ')
+        id_empresa = int(input('Enter company id: '))
+        cargo = input('Enter position: ')
+        status = input('Enter status: ')
+        password = input('Enter password: ')
 
-    new_user = Usuario(
-        nome=nome,
-        sobrenome=sobrenome,
-        email=email,
-        celular=celular,
-        id_empresa=id_empresa,
-        cargo=cargo,
-        status=status,
-        password=password,
-        is_admin=True
-    )
+        new_user = Usuario(
+            nome=nome,
+            sobrenome=sobrenome,
+            email=email,
+            celular=celular,
+            id_empresa=id_empresa,
+            cargo=cargo,
+            status=status,
+            password=password,
+            is_admin=True
+        )
 
-    db.session.add(new_user)
-    db.session.commit()
-    print(f'User created: {new_user.email}')  # Add this line
+        db.session.add(new_user)
+        db.session.commit()
+        print(f'User created: {new_user.email}')  # Add this line
+
 
 
 def verify_password(self, password):
