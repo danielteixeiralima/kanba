@@ -27,6 +27,15 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+
+
+@app.cli.command("create-db")
+def create_db():
+    with app.app_context():
+        db.create_all()
+
+
+
 @app.cli.command("create-admin")
 def create_admin():
     with app.app_context():
