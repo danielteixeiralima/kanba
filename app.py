@@ -17,10 +17,10 @@ load_dotenv()  # Carrega as variáveis de ambiente do arquivo .env
 
 app = Flask(__name__)
 app.secret_key = 'Omega801'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\USER\\PycharmProjects\\bizarte\\test.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///C:\\Users\\USER\\PycharmProjects\\bizarte\\test.db')
 migrate = Migrate(app, db)
 db.init_app(app)
-
+db.create_all()
 
 # Configuração do gerenciador de login
 login_manager = LoginManager()
