@@ -1143,8 +1143,8 @@ def cadastrar_tarefa_semanal():
         tarefa_semana = request.form['tarefa_semana']
         data_para_conclusao_str = request.form['data_para_conclusao']
 
-        empresa = Empresa.query.get(id_empresa)
-        usuario = Usuario.query.get(id_usuario)
+        empresa = db.session.get(Empresa, id_empresa)
+        usuario = db.session.get(Usuario, id_usuario)
 
         if empresa is None or usuario is None:
             return "Empresa ou Usuário não encontrado", 404
@@ -1163,10 +1163,16 @@ def cadastrar_tarefa_semanal():
                 data_str = request.form[data_key]
 
                 # Converta a string da data para um objeto datetime
-                data = datetime.strptime(data_str, '%Y-%m-%d')
+                if data_str:  # Verifique se data_str não é uma string vazia
+                    data = datetime.strptime(data_str, '%Y-%m-%d')
+                else:
+                    data = None  # Ou algum valor padrão
 
                 passos.append(passo)
-                datas.append(data.strftime('%Y-%m-%d'))  # Converta o objeto datetime para uma string
+                if data:  # Verifique se data não é None antes de chamar strftime
+                    datas.append(data.strftime('%Y-%m-%d'))  # Converta o objeto datetime para uma string
+                else:
+                    datas.append(None)  # Ou algum valor padrão
                 i += 1
             else:
                 break
@@ -1187,6 +1193,8 @@ def cadastrar_tarefa_semanal():
     empresas = Empresa.query.all()
     usuarios = Usuario.query.all()
     return render_template('cadastrar_tarefas_semanais_usuario.html', empresas=empresas, usuarios=usuarios)
+
+
 
 
 

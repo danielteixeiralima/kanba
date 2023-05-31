@@ -1,41 +1,37 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <div class="content">
-        <h1>Atualizar Tarefa Semanal</h1>
-        <form method="POST">
-            <div class="form-group">
-                <label for="tarefa_semana">Tarefa da Semana:</label>
-                <input type="text" id="tarefa_semana" name="tarefa_semana" value="{{ tarefa.tarefa_semana }}">
-            </div>
-            <div class="form-group">
-                <label for="data_para_conclusao">Data para Conclusão:</label>
-                <input type="date" id="data_para_conclusao" name="data_para_conclusao" value="{{ tarefa.data_para_conclusao }}">
-            </div>
-
-            <h2>Passos:</h2>
-            <table class="crud-table">
-                {% for i in range(1, 7) %}
-                    <tr>
-                        <td>
+    <div class="container">
+        <div class="row justify-content-center align-items-center" style="height:100vh">
+            <div class="col-4">
+                <h2 class="text-center mb-4 text-white">Atualizar Tarefa Semanal</h2>
+                <div class="card" style="background-color: #333;">
+                    <div class="card-body">
+                        <form method="POST">
                             <div class="form-group">
-                                <label for="passo{{i}}">Passo {{i}}:</label>
-                                <input type="text" id="passo{{i}}" name="passo{{i}}" value="{{ tarefa.to_do_decoded['passos'][i-1] }}">
+                                <label for="tarefa_semana" style="color: white;">Tarefa da Semana:</label>
+                                <input type="text" id="tarefa_semana" name="tarefa_semana" class="form-control" value="{{ tarefa.tarefa_semana }}" required>
                             </div>
-                        </td>
-                        <td>
                             <div class="form-group">
-                                <label for="data{{i}}">Data {{i}}:</label>
-                                <input type="date" id="data{{i}}" name="data{{i}}" value="{{ tarefa.to_do_decoded['datas'][i-1] }}">
+                                <label for="data_para_conclusao" style="color: white;">Data para Conclusão:</label>
+                                <input type="date" id="data_para_conclusao" name="data_para_conclusao" class="form-control" value="{{ tarefa.data_para_conclusao }}" required>
                             </div>
-                        </td>
-                    </tr>
-                {% endfor %}
-            </table>
 
-            <div class="form-group">
-                <input type="submit" value="Atualizar">
+                            <h2 style="color: white;">Passos:</h2>
+                            <div class="form-group">
+                                {% for i in range(1, 7) %}
+                                    <label for="passo{{i}}" style="color: white;">Passo {{i}}:</label>
+                                    <input type="text" id="passo{{i}}" name="passo{{i}}" class="form-control" value="{{ tarefa.to_do_decoded['passos'][i-1] }}" required>
+                                    <label for="data{{i}}" style="color: white;">Data {{i}}:</label>
+                                    <input type="date" id="data{{i}}" name="data{{i}}" class="form-control" value="{{ tarefa.to_do_decoded['datas'][i-1] }}" required>
+                                {% endfor %}
+                            </div>
+
+                            <button type="submit" class="btn btn-primary btn-block">Atualizar</button>
+                        </form>
+                    </div>
+                </div>
             </div>
-        </form>
+        </div>
     </div>
 {% endblock %}
