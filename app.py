@@ -38,6 +38,22 @@ def create_db():
     with app.app_context():
         db.create_all()
 
+@app.cli.command("create-empresa")
+def create_empresa():
+    empresa = Empresa(
+        nome_contato='Nome do Contato',
+        email_contato='email@contato.com',
+        telefone_contato='123456789',
+        endereco_empresa='Endereço da Empresa',
+        setor_atuacao='Setor de Atuação',
+        tamanho_empresa='Tamanho da Empresa',
+        descricao_empresa='Descrição da Empresa',
+        objetivos_principais='Objetivos Principais',
+        historico_interacoes='Histórico de Interações'
+    )
+    db.session.add(empresa)
+    db.session.commit()
+    print("Empresa criada com sucesso.")
 
 
 @app.cli.command("create-admin")
