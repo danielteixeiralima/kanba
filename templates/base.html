@@ -6,9 +6,26 @@
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        .logout-btn-container {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+        .logout-btn {
+            color: white;
+            background-color: red;
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+        }
+    </style>
 </head>
 <body>
     <h1>Bizarte</h1>
+    <div class="logout-btn-container">
+        <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+    </div>
     <div class="dropdown">
         <button class="dropbtn">Cadastro</button>
         <div class="dropdown-content">
@@ -22,10 +39,6 @@
             <a href="{{ url_for('listar_sprints_semana') }}">Sprint da Semana</a>
             <a href="{{ url_for('montagem_lista_usuario_sprint') }}">Montagem de Lista de Tarefas por Usuário</a>
             <a href="{{ url_for('listar_tarefas_semanais_usuario') }}">Tarefas Semanais por Usuário</a>
-
-
-
-
         </div>
     </div>
     <div class="dropdown">

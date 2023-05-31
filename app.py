@@ -8,6 +8,10 @@ from flask import jsonify
 from datetime import datetime
 from dotenv import load_dotenv
 import os
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required
+from werkzeug.security import generate_password_hash, check_password_hash
+
+
 
 load_dotenv()  # Carrega as variáveis de ambiente do arquivo .env
 
@@ -16,6 +20,98 @@ app.secret_key = 'Omega801'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///C:\\Users\\USER\\PycharmProjects\\bizarte\\test.db'
 migrate = Migrate(app, db)
 db.init_app(app)
+
+
+# Configuração do gerenciador de login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@app.cli.command("create-admin")
+def create_admin():
+    nome = input('Enter name: ')
+    sobrenome = input('Enter last name: ')
+    email = input('Enter email: ')
+    celular = input('Enter phone number: ')
+    id_empresa = int(input('Enter company id: '))
+    cargo = input('Enter position: ')
+    status = input('Enter status: ')
+    password = input('Enter password: ')
+
+    new_user = Usuario(
+        nome=nome,
+        sobrenome=sobrenome,
+        email=email,
+        celular=celular,
+        id_empresa=id_empresa,
+        cargo=cargo,
+        status=status,
+        password=password,
+        is_admin=True
+    )
+
+    db.session.add(new_user)
+    db.session.commit()
+    print(f'User created: {new_user.email}')  # Add this line
+
+
+def verify_password(self, password):
+    if self.password_hash is None:
+        return False
+    return check_password_hash(self.password_hash, password)
+
+
+class User(UserMixin):
+    pass
+
+@login_manager.user_loader
+def user_loader(email):
+    user = Usuario.query.filter_by(email=email).first()
+    if user is None:
+        return
+
+    user = User()
+    user.id = email
+    return user
+
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'GET':
+        return render_template('login.html')
+
+    email = request.form['email']
+    user = Usuario.query.filter_by(email=email).first()
+    if user is None:
+        return abort(401)
+
+    if user.verify_password(request.form['password']):
+        user_auth = User()
+        user_auth.id = user.id  # use user id instead of email
+        login_user(user_auth)
+        return redirect(url_for('home'))
+
+    return abort(401)
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('home'))
+
+
+@login_manager.user_loader
+def user_loader(user_id):
+    return Usuario.query.get(int(user_id))
+
+@login_manager.request_loader
+def request_loader(request):
+    user_id = request.form.get('user_id')
+    if user_id is None:
+        return
+    return Usuario.query.get(int(user_id))
 
 
 
@@ -31,15 +127,18 @@ app.jinja_env.globals.update(json=json)
 
 
 @app.route('/')
+@login_required
 def home():
     return render_template('home.html')
 
 @app.route('/empresas', methods=['GET'])
+@login_required
 def listar_empresas():
     empresas = Empresa.query.all()
     return render_template('listar_empresas.html', empresas=empresas)
 
 @app.route('/cadastrar/empresa', methods=['GET', 'POST'])
+@login_required
 def cadastrar_empresa():
     if request.method == 'POST':
         empresa = Empresa(
@@ -59,6 +158,7 @@ def cadastrar_empresa():
     return render_template('cadastrar_empresa.html')
 
 @app.route('/atualizar/empresa/<int:id>', methods=['GET', 'POST'])
+@login_required
 def atualizar_empresa(id):
     empresa = Empresa.query.get(id)
     if request.method == 'POST':
@@ -76,6 +176,7 @@ def atualizar_empresa(id):
     return render_template('atualizar_empresa.html', empresa=empresa)
 
 @app.route('/deletar_empresa/<int:id>', methods=['POST'])
+@login_required
 def deletar_empresa(id):
     empresa = Empresa.query.get_or_404(id)
     db.session.delete(empresa)
@@ -83,8 +184,10 @@ def deletar_empresa(id):
     return redirect(url_for('listar_empresas'))
 
 @app.route('/cadastrar/usuario', methods=['GET', 'POST'])
+@login_required
 def cadastrar_usuario():
     if request.method == 'POST':
+        hashed_password = generate_password_hash(request.form.get('password'), method='sha256')
         usuario = Usuario(
             nome=request.form.get('nome'),
             sobrenome=request.form.get('sobrenome'),
@@ -92,7 +195,8 @@ def cadastrar_usuario():
             celular=request.form.get('celular'),
             id_empresa=request.form.get('id_empresa'),
             cargo=request.form.get('cargo'),
-            status=request.form.get('status')
+            status=request.form.get('status'),
+            password=hashed_password
         )
         db.session.add(usuario)
         db.session.commit()
@@ -102,11 +206,13 @@ def cadastrar_usuario():
 
 
 @app.route('/usuarios', methods=['GET'])
+@login_required
 def listar_usuarios():
     usuarios = Usuario.query.all()
     return render_template('listar_usuarios.html', usuarios=usuarios)
 
 @app.route('/atualizar/usuario/<int:id>', methods=['GET', 'POST'])
+@login_required
 def atualizar_usuario(id):
     usuario = Usuario.query.get(id)
     if request.method == 'POST':
@@ -125,6 +231,7 @@ def atualizar_usuario(id):
 
 
 @app.route('/deletar_usuario/<int:id>', methods=['POST'])
+@login_required
 def deletar_usuario(id):
     usuario = Usuario.query.get_or_404(id)
     db.session.delete(usuario)
@@ -136,6 +243,7 @@ def deletar_usuario(id):
 
 
 @app.route('/planejamento_redes', methods=['GET', 'POST'])
+@login_required
 def planejamento_redes():
     empresas = Empresa.query.all()
     if request.method == 'POST':
@@ -167,6 +275,7 @@ def planejamento_redes():
 
 
 @app.route('/responder_pergunta/<int:id>', methods=['GET', 'POST'])
+@login_required
 def responder_pergunta(id):
     # Obter o ID da empresa da sessão
     empresa_id = session.get('empresa_id')
@@ -265,6 +374,7 @@ def perguntar_gpt(pergunta, pergunta_id, messages):
 
 
 @app.route('/visualizar_planejamento_atual/<int:id_empresa>', methods=['GET'])
+@login_required
 def visualizar_planejamento_atual(id_empresa):
     # Mapeamento de classificações
     classificacoes = [
@@ -291,6 +401,7 @@ def convert_string_to_datetime(date_string):
     return datetime.strptime(date_string, '%Y-%m-%d')
 
 @app.route('/cadastrar/okr', methods=['GET', 'POST'])
+@login_required
 def cadastrar_okr():
     if request.method == 'POST':
         try:
@@ -310,12 +421,14 @@ def cadastrar_okr():
 
 
 @app.route('/listar/okrs', methods=['GET'])
+@login_required
 def listar_okrs():
     okrs = OKR.query.all()  # Substitua OKR pela classe do seu modelo de OKR
     return render_template('listar_okrs.html', okrs=okrs)
 
 
 @app.route('/atualizar/okr/<int:id>', methods=['GET', 'POST'])
+@login_required
 def atualizar_okr(id):
     okr = OKR.query.get(id)
     empresas = Empresa.query.all()
@@ -332,6 +445,7 @@ def atualizar_okr(id):
 
 
 @app.route('/deletar/okr/<int:id>', methods=['POST'])
+@login_required
 def deletar_okr(id):
     okr = OKR.query.get(id)
     for kr in okr.krs:
@@ -343,6 +457,7 @@ def deletar_okr(id):
 
 
 @app.route('/listar/krs', methods=['GET'])
+@login_required
 def listar_krs():
     krs = KR.query.all()
     return render_template('listar_krs.html', krs=krs)
@@ -350,6 +465,7 @@ def listar_krs():
 
 
 @app.route('/cadastrar/kr', methods=['GET', 'POST'])
+@login_required
 def cadastrar_kr():
     if request.method == 'POST':
         id_empresa = int(request.form.get('empresa', '0'))  # Obtenha o valor do campo 'empresa' como uma string e converta-o para um inteiro
@@ -373,6 +489,7 @@ def cadastrar_kr():
 
 
 @app.route('/atualizar/kr/<int:id>', methods=['GET', 'POST'])
+@login_required
 def atualizar_kr(id):
     kr = KR.query.get(id)
     if request.method == 'POST':
@@ -397,6 +514,7 @@ def atualizar_kr(id):
 
 
 @app.route('/update_kr/<int:krId>', methods=['POST'])
+@login_required
 def update_kr(krId):
     okrId = request.form['objetivo']  # assumindo que isso retorna um id de OKR
     kr = KR.query.get(krId)
@@ -413,6 +531,7 @@ def update_kr(krId):
 
 
 @app.route('/get_okrs/<int:empresa_id>', methods=['GET'])
+@login_required
 def get_okrs(empresa_id):
     empresa = Empresa.query.get(empresa_id)
     if not empresa:
@@ -430,6 +549,7 @@ def get_okrs(empresa_id):
 
 
 @app.route('/deletar/kr/<int:id>', methods=['POST'])
+@login_required
 def deletar_kr(id):
     kr = KR.query.get(id)
     db.session.delete(kr)
@@ -437,6 +557,7 @@ def deletar_kr(id):
     return redirect(url_for('listar_krs'))
 
 @app.route('/get_objectives/<int:empresa_id>', methods=['GET'])
+@login_required
 def get_objectives(empresa_id):
     okrs = OKR.query.filter_by(id_empresa=empresa_id).all()
     objectives = [{'id': okr.id, 'objetivo': okr.objetivo} for okr in okrs]
@@ -445,12 +566,14 @@ def get_objectives(empresa_id):
 
 
 @app.route('/listar_macro_acao')
+@login_required
 def listar_macro_acao():
     krs = KR.query.all()  # Busca todos os KR do banco de dados
     return render_template('listar_macro_acao.html', krs=krs)
 
 
 @app.route('/gerar_macro_acao/<int:id>', methods=['GET', 'POST'])
+@login_required
 def gerar_macro_acao(id):
     time_now = datetime.utcnow()  # Salve o horário atual
     kr = KR.query.get(id)  # Busca o KR específico pelo id
@@ -511,6 +634,7 @@ def gerar_macro_acao(id):
 
 
 @app.route('/mostrar_resultados/<int:kr_id>')
+@login_required
 def mostrar_resultados(kr_id):
     kr = KR.query.get(kr_id)  # Busca o KR novamente do banco de dados
 
@@ -526,6 +650,7 @@ def mostrar_resultados(kr_id):
 
 
 @app.route('/atualizar_macro_acao/<int:id>', methods=['GET', 'POST'])
+@login_required
 def atualizar_macro_acao(id):
     macro_acao = MacroAcao.query.get(id)
     if request.method == 'POST':
@@ -537,6 +662,7 @@ def atualizar_macro_acao(id):
 
 
 @app.route('/deletar_macro_acao/<int:id>', methods=['GET'])
+@login_required
 def deletar_macro_acao(id):
     macro_acao = MacroAcao.query.get(id)
     db.session.delete(macro_acao)
@@ -545,23 +671,27 @@ def deletar_macro_acao(id):
 
 
 @app.route('/listar_macro_acoes_aprovadas', methods=['GET'])
+@login_required
 def listar_macro_acoes_aprovadas():
     macro_acoes = MacroAcao.query.all()
     return render_template('listar_macro_acoes_aprovadas.html', macro_acoes=macro_acoes)
 
 
 @app.route('/montagem_sprint_semana')
+@login_required
 def montagem_sprint_semana():
     empresas = Empresa.query.all()
     return render_template('montagem_sprint_semana.html', empresas=empresas)
 
 @app.route('/get_objetivos/<int:empresa_id>')
+@login_required
 def get_objetivos(empresa_id):
     objetivos = OKR.query.filter_by(id_empresa=empresa_id).all()
     return jsonify([{'id': objetivo.id, 'objetivo': objetivo.objetivo} for objetivo in objetivos])
 
 
 @app.route('/get_krs/<int:objetivo_id>')
+@login_required
 def get_krs(objetivo_id):
     krs = KR.query.filter_by(id_okr=objetivo_id).all()
     return jsonify([{'id': kr.id, 'texto': kr.texto} for kr in krs])
@@ -570,6 +700,7 @@ def get_krs(objetivo_id):
 
 
 @app.route('/get_empresa_info/<int:empresa_id>', methods=['GET'])
+@login_required
 def get_empresa_info(empresa_id):
     empresa = Empresa.query.get(empresa_id)
     okrs = OKR.query.filter_by(id_empresa=empresa_id).all()
@@ -589,32 +720,38 @@ def get_empresa_info(empresa_id):
 
 
 @app.route('/get_descricao_sprint/<int:empresa_id>')
+@login_required
 def get_descricao_sprint(empresa_id):
     empresa = Empresa.query.get(empresa_id)
     return jsonify(descricao=empresa.descricao_empresa)
 
 @app.route('/get_cargos_sprint/<int:empresa_id>')
+@login_required
 def get_cargos_sprint(empresa_id):
     usuarios = Usuario.query.filter_by(id_empresa=empresa_id)
     return jsonify([usuario.cargo for usuario in usuarios])
 
 @app.route('/get_okrs_sprint/<int:empresa_id>')
+@login_required
 def get_okrs_sprint(empresa_id):
     okrs = OKR.query.filter_by(id_empresa=empresa_id)
     return jsonify([okr.objetivo for okr in okrs])
 
 @app.route('/get_krs_sprint/<int:empresa_id>')
+@login_required
 def get_krs_sprint(empresa_id):
     krs = KR.query.filter_by(id_empresa=empresa_id)
     return jsonify([kr.texto for kr in krs])
 
 @app.route('/get_macro_acoes_sprint/<int:empresa_id>')
+@login_required
 def get_macro_acoes_sprint(empresa_id):
     macro_acoes = MacroAcao.query.filter_by(id_empresa=empresa_id)
     return jsonify([macro_acao.texto for macro_acao in macro_acoes])
 
 
 @app.route('/criar_sprint_semana', methods=['GET', 'POST'])
+@login_required
 def criar_sprint_semana():
     if request.method == 'POST':
         # Coletar informações da empresa
@@ -697,6 +834,7 @@ def criar_sprint_semana():
 
 
 @app.route('/resultado_sprint')
+@login_required
 def resultado_sprint():
     if 'empresa_id' not in session:
         return redirect(url_for('montagem_sprint_semana'))  # Se não há empresa, redirecionar
@@ -715,12 +853,14 @@ def resultado_sprint():
 
 
 @app.route('/listar_sprints_semana', methods=['GET'])
+@login_required
 def listar_sprints_semana():
     sprints = Sprint.query.all()
     return render_template('listar_sprints_semana.html', sprints=sprints)
 
 
 @app.route('/atualizar_sprint/<int:id>', methods=['GET', 'POST'])
+@login_required
 def atualizar_sprint(id):
     sprint = Sprint.query.get(id)
     if request.method == 'POST':
@@ -731,6 +871,7 @@ def atualizar_sprint(id):
     return render_template('atualizar_sprint.html', sprint=sprint)
 
 @app.route('/deletar_sprint/<int:id>', methods=['GET', 'POST'])
+@login_required
 def deletar_sprint(id):
     sprint = Sprint.query.get(id)
     db.session.delete(sprint)
@@ -738,6 +879,7 @@ def deletar_sprint(id):
     return redirect(url_for('listar_sprints_semana'))
 
 @app.route('/montagem_lista_usuario_sprint', methods=['GET', 'POST'])
+@login_required
 def montagem_lista_usuario_sprint():
     if request.method == 'POST':
         empresa_id = request.form.get('empresa')
@@ -747,6 +889,7 @@ def montagem_lista_usuario_sprint():
     return render_template('montagem_lista_usuario_sprint.html', empresas=empresas)
 
 @app.route('/lista_usuario_sprint', methods=['GET', 'POST'])
+@login_required
 def lista_usuario_sprint():
     if request.method == 'POST':
         empresa_id = request.form.get('empresa')
@@ -756,6 +899,7 @@ def lista_usuario_sprint():
     return render_template('selecionar_empresa.html', empresas=empresas)
 
 @app.route('/montar_tarefas_semana/<int:usuario_id>', methods=['GET', 'POST'])
+@login_required
 def montar_tarefas_semana(usuario_id):
     usuario = Usuario.query.get(usuario_id)
     empresa = Empresa.query.get(usuario.id_empresa)
@@ -772,6 +916,7 @@ def montar_tarefas_semana(usuario_id):
 
 
 @app.route('/iniciar_processo/<usuario_id>', methods=['POST'])
+@login_required
 def iniciar_processo(usuario_id):
     usuario = Usuario.query.get(usuario_id)
     if usuario is None:
@@ -872,6 +1017,7 @@ def iniciar_processo(usuario_id):
 
 
 @app.route('/listar_tarefas_semanais_usuario', methods=['GET'])
+@login_required
 def listar_tarefas_semanais_usuario():
     tarefas_semanais = TarefaSemanal.query.all()
     tarefas_decodificadas = []
@@ -884,6 +1030,7 @@ def listar_tarefas_semanais_usuario():
 
 
 @app.route('/atualizar_tarefa_semanal/<int:id>', methods=['GET', 'POST'])
+@login_required
 def atualizar_tarefa_semanal(id):
     tarefa = TarefaSemanal.query.get_or_404(id)
 
@@ -902,6 +1049,7 @@ def atualizar_tarefa_semanal(id):
 
 
 @app.route('/deletar_tarefa_semanal/<int:id>', methods=['POST'])
+@login_required
 def deletar_tarefa_semanal(id):
     tarefa = TarefaSemanal.query.get_or_404(id)
     db.session.delete(tarefa)
@@ -909,6 +1057,7 @@ def deletar_tarefa_semanal(id):
     return redirect(url_for('listar_tarefas_semanais_usuario'))
 
 @app.route('/cadastrar/macro_acao', methods=['GET', 'POST'])
+@login_required
 def cadastrar_macro_acao():
     if request.method == 'POST':
         id_empresa = int(request.form.get('empresa', '0'))
@@ -942,6 +1091,7 @@ def cadastrar_macro_acao():
 
 
 @app.route('/cadastrar/sprint', methods=['GET', 'POST'])
+@login_required
 def cadastrar_sprint():
     if request.method == 'POST':
         id_empresa = int(request.form.get('empresa', '0'))
@@ -975,6 +1125,7 @@ def cadastrar_sprint():
 
 
 @app.route('/get_usuarios/<int:empresa_id>')
+@login_required
 def get_usuarios(empresa_id):
     usuarios = Usuario.query.filter_by(id_empresa=empresa_id).all()
     return jsonify([{'id': usuario.id, 'nome': usuario.nome} for usuario in usuarios])
@@ -984,6 +1135,7 @@ def get_usuarios(empresa_id):
 
 
 @app.route('/cadastrar/tarefa_semanal', methods=['GET', 'POST'])
+@login_required
 def cadastrar_tarefa_semanal():
     if request.method == 'POST':
         id_empresa = int(request.form.get('empresa', '0'))

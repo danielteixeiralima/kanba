@@ -1,10 +1,8 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from flask import json
-from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField
-from wtforms.validators import DataRequired
-
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import UserMixin
 
 
 db = SQLAlchemy()
@@ -35,7 +33,7 @@ class Resposta(db.Model):
     data_atualizacao = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
 
-class Usuario(db.Model):
+class Usuario(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(80), nullable=False)
     sobrenome = db.Column(db.String(80), nullable=False)
@@ -52,6 +50,19 @@ class Usuario(db.Model):
     dayling_3 = db.Column(db.String(200))  # Novo campo
     dayling_4 = db.Column(db.String(200))  # Novo campo
     dayling_5 = db.Column(db.String(200))  # Novo campo
+    password_hash = db.Column(db.String(128))
+    is_admin = db.Column(db.Boolean, default=False)  # Novo campo
+
+    @property
+    def password(self):
+        raise AttributeError('password: campo de leitura apenas')
+
+    @password.setter
+    def password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def verify_password(self, password):
+        return check_password_hash(self.password_hash, password)
 
 class OKR(db.Model):
     id = db.Column(db.Integer, primary_key=True)
