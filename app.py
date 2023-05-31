@@ -10,14 +10,18 @@ from dotenv import load_dotenv
 import os
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required
 from werkzeug.security import generate_password_hash, check_password_hash
-
+import re
 
 
 load_dotenv()  # Carrega as variáveis de ambiente do arquivo .env
 
+url = os.getenv("DATABASE_URL")  # obtém a URL do banco de dados do ambiente
+if url.startswith("postgres://"):
+    url = url.replace("postgres://", "postgresql://", 1)  # substitui o primeiro 'postgres://' por 'postgresql://'
+
 app = Flask(__name__)
 app.secret_key = 'Omega801'
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///C:\\Users\\USER\\PycharmProjects\\bizarte\\test.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = url or 'sqlite:///C:\\Users\\USER\\PycharmProjects\\bizarte\\test.db'
 migrate = Migrate(app, db)
 db.init_app(app)
 
