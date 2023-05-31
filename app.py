@@ -20,7 +20,7 @@ app.secret_key = 'Omega801'
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///C:\\Users\\USER\\PycharmProjects\\bizarte\\test.db')
 migrate = Migrate(app, db)
 db.init_app(app)
-db.create_all()
+
 
 # Configuração do gerenciador de login
 login_manager = LoginManager()
@@ -30,6 +30,7 @@ login_manager.login_view = 'login'
 @app.cli.command("create-admin")
 def create_admin():
     with app.app_context():
+        db.create_all()
         nome = input('Enter name: ')
         sobrenome = input('Enter last name: ')
         email = input('Enter email: ')
@@ -54,6 +55,7 @@ def create_admin():
         db.session.add(new_user)
         db.session.commit()
         print(f'User created: {new_user.email}')  # Add this line
+
 
 
 
