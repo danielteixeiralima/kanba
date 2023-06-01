@@ -611,7 +611,8 @@ def gerar_macro_acao(id):
     time_now = datetime.utcnow()  # Salve o horário atual
     kr = KR.query.get(id)  # Busca o KR específico pelo id
     if kr is None:
-        return redirect(url_for('listar_macro_acao'))  # Se o KR não existir, redireciona para a lista
+        flash('KR não encontrado', 'error')
+        return redirect(url_for('listar_macro_acao'))
 
     if request.method == 'POST':
         # Gera a pergunta para o GPT-4
@@ -633,36 +634,83 @@ def gerar_macro_acao(id):
         for i, acao in enumerate(macro_acoes, start=1):
             acao['id'] = i
 
+        # Armazena a resposta, as macro ações e o id do KR na sessão
+        session['resposta'] = resposta
+        session['macro_acoes'] = macro_acoes
+        session['kr_id'] = id
+
+        # Redireciona para a página de revisão
+        return redirect(url_for('revisar_macro_acoes'))
+
+    return render_template('gerar_macro_acao.html', kr=kr)
+
+
+
+@app.route('/revisar_macro_acoes', methods=['GET', 'POST'])
+@login_required
+def revisar_macro_acoes():
+    if request.method == 'POST':
+        macro_acoes = session.get('macro_acoes')
+        kr_id = session.get('kr_id')
+        kr = KR.query.get(kr_id)
+
+        for acao in macro_acoes:
             # Cria uma nova entrada em MacroAcao para cada ação na resposta
             macro_acao = MacroAcao(
                 texto=acao['acao'],
                 aprovada=False,  # Inicialmente, a ação não é aprovada
-                kr_id=id,
+                kr_id=kr_id,
                 objetivo=kr.okr.objetivo,
-                objetivo_id=kr.okr.id,  # Alteramos de kr.okr_id para kr.okr.id
+                objetivo_id=kr.okr.id,
                 empresa=kr.okr.empresa.nome_contato,
-                empresa_id=kr.okr.empresa.id  # Alteramos de kr.okr.empresa_id para kr.okr.empresa.id
+                empresa_id=kr.okr.empresa.id
             )
 
             # Salva a nova entrada no banco de dados
             db.session.add(macro_acao)
         db.session.commit()
 
-        # Armazena a resposta, as macro ações e o id do KR na sessão
-        session['resposta'] = resposta
-        session['macro_acoes'] = macro_acoes
-        session['kr_id'] = id
-
-        print(resposta)
-        print(type(resposta_dict))
-        print(resposta_dict)
-
         # Redireciona para a página de resultados
-        return redirect(url_for('mostrar_resultados', kr_id=id))  # Adicionamos o parâmetro kr_id
+        return redirect(url_for('mostrar_resultados', kr_id=kr_id))
 
-    return render_template('gerar_macro_acao.html', kr=kr)
+    else:
+        macro_acoes = session.get('macro_acoes')
+        return render_template('revisar_macro_acoes.html', macro_acoes=macro_acoes)
 
+@app.route('/refazer_macro_acao/<int:id>', methods=['POST'])
+@login_required
+def refazer_macro_acao(id):
+    feedback = request.form.get('feedback')  # Obtenha o feedback do formulário
+    resposta_anterior = session.get('resposta')  # Obtenha a resposta anterior da sessão
+    kr = KR.query.get(id)  # Busca o KR específico pelo id
 
+    # Gera a pergunta para o GPT-4
+    pergunta = f"Considerando essa resposta {resposta_anterior}, e esse feedback {feedback}, Considerando o Key Result {kr.texto} definidos para o objetivo: {kr.okr.objetivo} para a empresa {kr.okr.empresa.descricao_empresa} para os próximos 90 dias, eu gostaria que você gerasse uma lista de macro ações estratégicas necessárias para alcançar esses KRs. Depois de gerar essa lista, por favor, organize as ações em ordem de prioridade, levando em consideração a eficiência e a eficácia na realização dos KRs. Provide them in JSON format with the following keys: prioridade, acao."
+    messages = [{"role": "system", "content": "You are a helpful assistant."}]
+    resposta, messages = perguntar_gpt(pergunta, id, messages)
+
+    print(f'Resposta: {resposta}')  # Imprime a resposta
+
+    # Carrega a resposta JSON
+    resposta_dict = json.loads(resposta)
+    # Verifica se a resposta é uma lista ou um dicionário com a chave 'acoes'
+    if isinstance(resposta_dict, list):
+        macro_acoes = resposta_dict
+    elif 'acoes' in resposta_dict:
+        macro_acoes = resposta_dict['acoes']
+    else:
+        raise ValueError("Resposta inesperada: não é uma lista nem contém a chave 'acoes'")
+
+    # Adiciona um ID a cada ação
+    for i, acao in enumerate(macro_acoes, start=1):
+        acao['id'] = i
+
+    # Armazena a nova resposta e as novas macro ações na sessão
+    session['resposta'] = resposta
+    session['macro_acoes'] = macro_acoes
+
+    # Redireciona para a página de revisão
+    return redirect(url_for('revisar_macro_acoes'))
 
 
 
