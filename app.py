@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 import os
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required
 from werkzeug.security import generate_password_hash, check_password_hash
-import re
+
 
 
 load_dotenv()  # Carrega as variáveis de ambiente do arquivo .env
@@ -24,7 +24,8 @@ app.secret_key = 'Omega801'
 app.config['SQLALCHEMY_DATABASE_URI'] = url or 'sqlite:///C:\\Users\\USER\\PycharmProjects\\bizarte\\test.db'
 migrate = Migrate(app, db)
 db.init_app(app)
-
+app.jinja_env.globals.update(zip=zip)
+app.jinja_env.globals.update(len=len)
 
 # Configuração do gerenciador de login
 login_manager = LoginManager()
@@ -880,34 +881,137 @@ def criar_sprint_semana():
 
             return redirect(url_for('montagem_sprint_semana'))  # Se a decodificação falhar, redirecionar
 
-        # Adiciona um ID a cada sprint e salva no banco de dados
-        for sprint in sprints:
-            if isinstance(sprint, dict):  # Verifica se o sprint é um dicionário
-                nome_usuario_responsavel = sprint.get('responsável', '')
-                usuario_responsavel = Usuario.query.filter_by(nome=nome_usuario_responsavel).first()
-                sprint_db = Sprint(
-                    empresa_id=empresa_id,
-                    nome_empresa=empresa.nome_contato,
-                    prioridade=sprint.get('prioridade', ''),  # Usa o método get para evitar KeyError
-                    tarefa=sprint.get('tarefa', ''),  # Usa o método get para evitar KeyError
-                    usuario=usuario_responsavel  # Usa o método get para evitar KeyError
-                )
-                db.session.add(sprint_db)
-            else:
-                print(f"Erro: esperava um dicionário, mas recebeu {type(sprint)}")
-        db.session.commit()
-
         # Armazena a resposta, os sprints e o id da empresa na sessão
         session['resposta'] = resposta
         session['sprints'] = sprints
         session['empresa_id'] = empresa_id
 
-        # Redireciona para a página de resultados
-        return redirect(url_for('resultado_sprint'))
+        # Redireciona para a página de revisão
+        return redirect(url_for('revisar_sprint'))
 
     # Renderiza o template de criação de sprint
     return render_template('montagem_sprint_semana.html')
 
+
+@app.route('/revisar_sprint', methods=['GET', 'POST'])
+@login_required
+def revisar_sprint():
+    if request.method == 'POST':
+        # Aqui, vamos adicionar os sprints ao banco de dados
+        sprints = session.get('sprints', [])
+        empresa_id = session.get('empresa_id')
+        empresa = db.session.get(Empresa, empresa_id)
+        for sprint in sprints:
+            if isinstance(sprint, dict):
+                nome_usuario_responsavel = sprint.get('responsável', '')
+                usuario_responsavel = Usuario.query.filter_by(nome=nome_usuario_responsavel).first()
+                sprint_db = Sprint(
+                    empresa_id=empresa_id,
+                    nome_empresa=empresa.nome_contato,
+                    prioridade=sprint.get('prioridade', ''),
+                    tarefa=sprint.get('tarefa', ''),
+                    usuario=usuario_responsavel
+                )
+                db.session.add(sprint_db)
+        db.session.commit()
+
+        # Limpa os dados da sessão
+        session.pop('resposta', None)
+        session.pop('sprints', None)
+        session.pop('empresa_id', None)
+
+        # Redireciona para a página de resultados
+        return redirect(url_for('resultado_sprint'))
+
+    # Renderiza o template de revisão de sprint
+    return render_template('revisar_sprint.html')
+
+
+@app.route('/aprovar_sprints', methods=['POST'])
+@login_required
+def aprovar_sprints():
+    # Aqui, você pode adicionar o código para aprovar os sprints
+    # Por exemplo, você pode adicionar os sprints ao banco de dados
+    sprints = session.get('sprints', [])
+    empresa_id = session.get('empresa_id')
+    empresa = db.session.get(Empresa, empresa_id)
+    for sprint in sprints:
+        if isinstance(sprint, dict):
+            nome_usuario_responsavel = sprint.get('responsável', '')
+            usuario_responsavel = Usuario.query.filter_by(nome=nome_usuario_responsavel).first()
+            sprint_db = Sprint(
+                empresa_id=empresa_id,
+                nome_empresa=empresa.nome_contato,
+                prioridade=sprint.get('prioridade', ''),
+                tarefa=sprint.get('tarefa', ''),
+                usuario=usuario_responsavel
+            )
+            db.session.add(sprint_db)
+    db.session.commit()
+
+    # Limpa os dados da sessão
+    session.pop('resposta', None)
+    session.pop('sprints', None)
+    session.pop('empresa_id', None)
+
+    # Redireciona para a página de resultados
+    return redirect(url_for('resultado_sprint'))
+
+
+
+@app.route('/refazer_sprint', methods=['POST'])
+@login_required
+def refazer_sprint():
+    # Obter o feedback do usuário
+    feedback = request.form.get('feedback')
+
+    # Obter as informações da empresa
+    empresa_id = session.get('empresa_id')
+    empresa = db.session.get(Empresa, empresa_id)  # Obter a empresa pelo ID
+    if empresa is None:
+        return redirect(url_for('montagem_sprint_semana'))  # Se a empresa não existir, redirecionar
+
+    # Obter as macro ações associadas à empresa
+    macro_acoes = MacroAcao.query.filter_by(empresa_id=empresa.id).all()
+
+    # Obter os OKRs e usuários associados à empresa
+    okrs = OKR.query.filter_by(id_empresa=empresa.id).all()
+    usuarios = Usuario.query.filter_by(id_empresa=empresa.id).all()
+
+    # Formatar as listas como strings
+    macro_acoes_str = ', '.join([acao.texto for acao in macro_acoes])
+    okrs_str = ', '.join([okr.objetivo for okr in okrs])
+    usuarios_str = ', '.join([f'{usuario.nome} ({usuario.cargo})' for usuario in usuarios])
+
+    # Obter a resposta anterior
+    resposta_anterior = session.get('resposta')
+
+    # Construir a pergunta para o GPT-3
+    pergunta = f"Considerando essa resposta {resposta_anterior}, e esse feedback {feedback}, considerando a lista de macro ações estratégicas geradas a partir dos OKRs {okrs_str} da empresa para os próximos 90 dias, as habilidades específicas dos colaboradores da equipe {usuarios_str}, peço que você desenvolva um plano de sprint para a próxima semana. Para ajudar a moldar esse plano, aqui estão as informações que você precisa considerar: Lista de macro ações: {macro_acoes_str}, Habilidades dos colaboradores: {usuarios_str}, Resumo sobre a empresa: {empresa.descricao_empresa}. Com base nessas informações, por favor, crie um plano de sprint que defina as tareas específicas a serem realizadas na próxima semana, priorizando as ações mais críticas e detalhando como essas tarefas suportam os OKRs definidos. Além disso, coloque o responsável por cada tarefa específica de acordo com a tarefa e o cargo dos colaboradores. Provide them in JSON format with the following keys: prioridade, tarefa, responsável."
+    print(pergunta)
+    messages = [{"role": "system", "content": "You are a helpful assistant."}]
+    resposta, messages = perguntar_gpt(pergunta, empresa_id, messages)
+
+    # Encontra o início e o final do objeto JSON na resposta
+    inicio_json = resposta.find('[')
+    final_json = resposta.rfind(']')
+
+    # Se não encontramos um objeto JSON, lançamos um erro
+    if inicio_json == -1 or final_json == -1:
+        print(f"Erro ao decodificar JSON: não foi possível encontrar")
+        return redirect(url_for('montagem_sprint_semana'))
+
+    # Extrair o objeto JSON da resposta
+    json_str = resposta[inicio_json:final_json+1]
+
+    # Decodificar o objeto JSON
+    sprints = json.loads(json_str)
+
+    # Salvar os sprints na sessão
+    session['sprints'] = sprints
+
+    # Redirecionar para a página de revisão de sprints
+    return redirect(url_for('revisar_sprint'))
 
 
 
@@ -989,109 +1093,248 @@ def montar_tarefas_semana(usuario_id):
     macro_acoes = MacroAcao.query.filter_by(empresa_id=usuario.id_empresa).all()
     sprints = Sprint.query.filter_by(usuario_id=usuario.id).all()
 
+    # Adicionado código de depuração
+    print(f"Usuario: {usuario.nome}")
+    print(f"Empresa: {empresa.nome_contato}")
+    print(f"OKRs: {[okr.objetivo for okr in okrs]}")
+    print(f"KRs: {[kr.texto for kr in krs]}")
+    print(f"Macro Ações: {[acao.texto for acao in macro_acoes]}")
+    print(f"Sprints: {[sprint.tarefa for sprint in sprints]}")
+
     if request.method == 'POST':
         # Aqui você pode iniciar o processo que mencionou
         pass
 
-    return render_template('montar_tarefas_semana.html', empresa=empresa, usuario=usuario, okrs=okrs, macro_acoes=macro_acoes, sprints=sprints)
+    return render_template('montar_tarefas_semana.html', empresa=empresa, usuario=usuario, okrs=okrs, krs=krs, macro_acoes=macro_acoes, sprints=sprints)
 
 
-@app.route('/iniciar_processo/<usuario_id>', methods=['POST'])
+@app.route('/iniciar_processo/<int:usuario_id>', methods=['POST'])
 @login_required
 def iniciar_processo(usuario_id):
-    usuario = Usuario.query.get(usuario_id)
+    print(f"Usuario ID: {usuario_id}")  # Adicione esta linha
+    # Obter o usuário pelo ID
+    usuario = db.session.get(Usuario, usuario_id)
     if usuario is None:
-        return redirect(url_for('montagem_sprint_semana'))  # Se o usuário não existir, redirecionar
+        return redirect(url_for('montar_tarefas_semana', usuario_id=usuario_id))  # Se o usuário não existir, redirecionar
 
-    empresa = Empresa.query.get(usuario.id_empresa)
-    if empresa is None:
-        return redirect(url_for('montagem_sprint_semana'))  # Se a empresa não existir, redirecionar
+    # Obter a empresa associada ao usuário
+    empresa = db.session.get(Empresa, usuario.id_empresa)
 
-    okrs = OKR.query.filter_by(id_empresa=empresa.id).all()
-    krs = KR.query.all()  # Adicionado aqui
+    # Obter as macro ações associadas à empresa
     macro_acoes = MacroAcao.query.filter_by(empresa_id=empresa.id).all()
+
+    # Obter os OKRs associados à empresa
+    okrs = OKR.query.filter_by(id_empresa=empresa.id).all()
+
+    # Obter os KRs associados à empresa
+    krs = KR.query.filter_by(id_empresa=empresa.id).all()
+
+    # Obter os sprints associados ao usuário
     sprints = Sprint.query.filter_by(usuario_id=usuario.id).all()
 
     # Formatar as listas como strings
-    okrs_str = ', '.join([f'{okr.objetivo}: {" - ".join([kr.texto for kr in krs if kr.id_okr == okr.id])}' for okr in okrs])  # Modificado aqui
     macro_acoes_str = ', '.join([acao.texto for acao in macro_acoes])
-    sprints_str = ', '.join([f'{sprint.tarefa} - Criado em: {sprint.data_criacao}' for sprint in sprints])
+    okrs_str = ', '.join([okr.objetivo for okr in okrs])
+    krs_str = ', '.join([kr.texto for kr in krs])
+    sprints_str = ', '.join([f'{sprint.tarefa} ({sprint.data_criacao})' for sprint in sprints])
 
     # Construir a pergunta para o GPT-4
-    pergunta = f"Inteligência Artificial GPT, considerando a lista de macro ações estratégicas geradas a partir dos OKRs {okrs_str}, Resumo sobre a empresa: {empresa.descricao_empresa} e a Lista de macro ações: {macro_acoes_str}, o sprint da semana para o colaborador {usuario.nome} {usuario.cargo} é {sprints_str}. Peço que você desenvolva um plano de sprint específico para esse usuario OBSERVANDO O RELACIONAMENTO DE IMPACTO DE MACRO AÇÕES QUE POSSA INFLUENCIAR A PRIORIZAÇÃO DE AÇÕES OU DE PROGRAMAÇÃO DA AGENDA DO COLABORADOR {usuario.nome} para a próxima semana. Defina quais as tarefas devem ser realizadas durante a proxima semana para esse usuário. Provide them in JSON format with the following keys: tarefa_semana, usuario, data_para_conclusão, passo1, data1, passo2, data2, passo3, data3, passo4, data4, passo5, data5, passo6, data6."
-
-    # Substituir perguntar_gpt pela função real
-    # Resposta da GPT-4
-    resposta, messages = perguntar_gpt(pergunta, empresa.id, [])
-    print("Resposta do GPT-4:", resposta)
-
+    pergunta = f"Inteligência Artificial GPT, considerando a lista de macro ações estratégicas geradas a partir dos OKRs {okrs_str} e dos KRs {krs_str}, Resumo sobre a empresa: {empresa.descricao_empresa} e a Lista de macro ações: {macro_acoes_str}, as tarefas da semana {sprints_str} para o colaborador {usuario.nome} {usuario.cargo}  crie to-do para cada tarefa. Provide them in JSON format with the following keys: tarefa, usuario, data_para_conclusão, passo1, data1, passo2, data2, passo3, data3, passo4, data4, passo5, data5, passo6, data6."
+    print(pergunta)
+    messages = [{"role": "system", "content": "You are a helpful assistant."}]
+    resposta, messages = perguntar_gpt(pergunta, empresa.id, messages)
+    # Imprimir a resposta do GPT
+    print(f"Resposta do GPT: {resposta}")
     # Encontra o início e o final do objeto JSON na resposta
-    inicio_json = resposta.find('{')
-    final_json = resposta.rfind('}')
+    inicio_json = resposta.find('[')
+    final_json = resposta.rfind(']')
 
     # Se não encontramos um objeto JSON, lançamos um erro
     if inicio_json == -1 or final_json == -1:
         print(f"Erro ao decodificar JSON: não foi possível encontrar um objeto JSON na resposta")
         print(f"Resposta: {resposta}")
-        return redirect(url_for('montagem_sprint_semana'))  # Se a decodificação falhar, redirecionar
+        return redirect(url_for('montar_tarefas_semana', usuario_id=usuario_id))
 
-    json_str = resposta[inicio_json:final_json + 1]
 
-    #Carrega a resposta JSON
+    json_str = resposta[inicio_json:final_json+1]
+
+    # Carrega a resposta JSON
     try:
-        sprint = json.loads(json_str)
+        tarefas_semana = json.loads(json_str)
+
     except json.JSONDecodeError as e:
         print(f"Erro ao decodificar JSON: {str(e)}")
         print(f"Resposta:{resposta}")
-        return redirect(url_for('montagem_sprint_semana'))  # Se a decodificação falhar, redirecionar
 
-    # Adiciona um ID a cada sprint e salva no banco de dados
-    if isinstance(sprint, dict):  # Verifica se o sprint é um dicionário
-        tarefa_semana = sprint.get('tarefa_semana', '')  # Usa o método get para evitar KeyError
-        data_para_conclusao_str = sprint.get('data_para_conclusão', '')  # Usa o método get para evitar KeyError
+        return redirect(url_for('montar_tarefas_semana', usuario_id=usuario_id))  # Se a decodificação falhar, redirecionar
 
-        # Convert a string de data para datetime
-        if data_para_conclusao_str:
-            data_para_conclusao = datetime.strptime(data_para_conclusao_str, '%Y-%m-%d')
-        else:
-            data_para_conclusao = None
+    # Armazena a resposta, as tarefas da semana e o id do usuário na sessão
+    session['resposta'] = resposta
+    session['tarefas_semana'] = tarefas_semana
+    session['usuario_id'] = usuario_id
 
-        # Adiciona os passos e datas
+    # Redireciona para a página de revisão
+    return redirect(url_for('revisar_tarefas'))
+
+
+@app.route('/refazer_tarefa/<int:usuario_id>', methods=['POST'])
+@login_required
+def refazer_tarefa(usuario_id):
+    # Obter o feedback do usuário
+    feedback = request.form.get('feedback')
+
+    # Obter a resposta anterior do GPT
+    resposta_anterior = session.get('resposta')
+
+    # Obter o usuário pelo ID
+    usuario = db.session.get(Usuario, usuario_id)
+    if usuario is None:
+        return redirect(url_for('montar_tarefa_semana'))  # Se o usuário não existir, redirecionar
+
+    # Obter a empresa associada ao usuário
+    empresa = db.session.get(Empresa, usuario.id_empresa)
+
+    # Obter as macro ações associadas à empresa
+    macro_acoes = MacroAcao.query.filter_by(empresa_id=empresa.id).all()
+
+    # Obter os OKRs associados à empresa
+    okrs = OKR.query.filter_by(id_empresa=empresa.id).all()
+
+    # Obter os KRs associados à empresa
+    krs = KR.query.filter_by(id_empresa=empresa.id).all()
+
+    # Obter os sprints associados ao usuário
+    sprints = Sprint.query.filter_by(usuario_id=usuario.id).all()
+
+    # Formatar as listas como strings
+    macro_acoes_str = ', '.join([acao.texto for acao in macro_acoes])
+    okrs_str = ', '.join([okr.objetivo for okr in okrs])
+    krs_str = ', '.join([kr.texto for kr in krs])
+    sprints_str = ', '.join([f'{sprint.tarefa} ({sprint.data_criacao})' for sprint in sprints])
+
+    # Construir a pergunta para o GPT-4
+    pergunta = f"Inteligência Artificial GPT, considerando esse feedback {feedback} pra essa resposta {resposta_anterior}, considerando a lista de macro ações estratégicas geradas a partir dos OKRs {okrs_str} e dos KRs {krs_str}, Resumo sobre a empresa: {empresa.descricao_empresa} e a Lista de macro ações: {macro_acoes_str}, as tarefas da semana {sprints_str} para o colaborador {usuario.nome} {usuario.cargo}  crie to-do para cada tarefa. Provide them in JSON format with the following keys: tarefa, usuario, data_para_conclusão, passo1, data1, passo2, data2, passo3, data3, passo4, data4, passo5, data5, passo6, data6."
+    print(pergunta)
+    messages = [{"role": "system", "content": "You are a helpful assistant."}]
+    resposta, messages = perguntar_gpt(pergunta, empresa.id, messages)
+    # Imprimir a resposta do GPT
+    print(f"Resposta do GPT: {resposta}")
+    # Encontra o início e o final do objeto JSON na resposta
+    inicio_json = resposta.find('[')
+    final_json = resposta.rfind(']')
+
+    # Se não encontramos um objeto JSON, lançamos um erro
+    if inicio_json == -1 or final_json == -1:
+        print(f"Erro ao decodificar JSON: não foi possível encontrar um objeto JSON na resposta")
+        print(f"Resposta: {resposta}")
+        return redirect(url_for('montar_tarefa_semana'))
+
+    json_str = resposta[inicio_json:final_json+1]
+
+    # Carrega a resposta JSON
+    try:
+        tarefas_semana = json.loads(json_str)
+
+    except json.JSONDecodeError as e:
+        print(f"Erro ao decodificar JSON: {str(e)}")
+        print(f"Resposta:{resposta}")
+
+        return redirect(url_for('montar_tarefa_semana'))  # Se a decodificação falhar, redirecionar
+
+    # Armazena a resposta, as tarefas da semana e o id do usuário na sessão
+    session['resposta'] = resposta
+    session['tarefas_semana'] = tarefas_semana
+    session['usuario_id'] = usuario_id
+
+    # Redireciona para a página de revisão
+    return redirect(url_for('revisar_tarefas'))
+
+
+
+
+@app.route('/revisar_tarefas', methods=['GET'])
+@login_required
+def revisar_tarefas():
+    # Obter o ID do usuário da sessão
+    usuario_id = session.get('usuario_id')
+    if usuario_id is None:
+        print("Erro: usuario_id não encontrado na sessão")
+        return redirect(url_for('montar_tarefa_semana'))
+
+    # Obter o usuário pelo ID
+    usuario = db.session.get(Usuario, usuario_id)
+    if usuario is None:
+        print(f"Erro: Não foi possível encontrar o usuário com o ID {usuario_id}")
+        return redirect(url_for('montar_tarefa_semana'))  # Se o usuário não existir, redirecionar
+
+    # Obter as tarefas da semana da sessão
+    tarefas_semana = session.get('tarefas_semana', [])
+    if not tarefas_semana:
+        print("Erro: tarefas_semana não encontradas na sessão")
+
+    # Renderizar o template 'revisar_tarefas.html'
+    return render_template('revisar_tarefas.html', usuario=usuario, tarefas_semana=tarefas_semana)
+
+
+
+
+@app.route('/aprovar_tarefas', methods=['POST'])
+@login_required
+def aprovar_tarefas():
+    usuario_id = session.get('usuario_id')
+    tarefas_semana = session.get('tarefas_semana', [])
+
+    usuario = db.session.get(Usuario, usuario_id)
+    if usuario is None:
+        return redirect(url_for('montar_tarefa_semana'))
+
+    for tarefa in tarefas_semana:
         passos = []
         datas = []
         for i in range(1, 7):
-            passo = sprint.get(f'passo{i}', '')
-            data = sprint.get(f'data{i}', '')
-            if passo and data:
-                passos.append(passo)
-                datas.append(datetime.strptime(data, '%Y-%m-%d').strftime('%Y-%m-%d'))  # Convert datetime object to string
+            passo_key = 'passo' + str(i)
+            data_key = 'data' + str(i)
+            passo = tarefa.get(passo_key, '')
+            data_str = tarefa.get(data_key, '')
+
+            if data_str:
+                data = datetime.strptime(data_str, '%Y-%m-%d')
             else:
-                passos.append(None)
+                data = None
+
+            passos.append(passo)
+            if data:
+                datas.append(data.strftime('%Y-%m-%d'))
+            else:
                 datas.append(None)
 
-        # Cria um dicionário para armazenar os passos e datas
-        to_do = {"passos": passos, "datas": datas}
+        to_do = json.dumps({"passos": passos, "datas": datas})
 
-        if tarefa_semana and data_para_conclusao:  # Somente crie a TarefaSemanal se os campos forem não nulos
-            tarefa_semanal_db = TarefaSemanal(
-                empresa_id=empresa.id,  # Adicionado aqui
-                usuario_id=usuario_id,
-                tarefa_semana=tarefa_semana,
-                data_para_conclusao=data_para_conclusao,
-                to_do=json.dumps(to_do)  # Armazena os passos e datas como uma string JSON
-            )
-            db.session.add(tarefa_semanal_db)
-    else:
-        print(f"Erro: esperava um dicionário, mas recebeu {type(sprint)}")
+        data_para_conclusao_str = tarefa.get('data_para_conclusão')
+        data_para_conclusao = None
+
+        # Tenta vários formatos de data
+        for fmt in ('%Y-%m-%d', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M:%S.%f'):
+            try:
+                data_para_conclusao = datetime.strptime(data_para_conclusao_str, fmt)
+                break  # Se a conversão for bem sucedida, saia do loop
+            except ValueError:
+                pass  # Se a conversão falhar, continue para o próximo formato
+
+        tarefa_semanal = TarefaSemanal(
+            empresa_id=usuario.id_empresa,
+            usuario_id=usuario_id,
+            tarefa_semana=tarefa.get('tarefa', ''),
+            to_do=to_do,
+            data_para_conclusao=data_para_conclusao,
+        )
+        db.session.add(tarefa_semanal)
     db.session.commit()
 
-    # Armazena a resposta e os sprints na sessão
-    session['resposta'] = resposta
-    session['sprints'] = sprint
+    session.pop('usuario_id', None)
+    session.pop('tarefas_semana', None)
 
-    # Redireciona para a página de resultados
-    return redirect(url_for('resultado_sprint'))
-
+    return redirect(url_for('listar_tarefas_semanais_usuario'))
 
 
 
@@ -1105,7 +1348,7 @@ def listar_tarefas_semanais_usuario():
     for tarefa in tarefas_semanais:
         tarefa_dict = tarefa.__dict__
         tarefa_dict['to_do_decoded'] = tarefa.to_do_decoded
-        tarefa_dict['usuario'] = tarefa.usuario.nome  # Adicione essa linha
+        tarefa_dict['usuario'] = tarefa.usuario.nome
         tarefas_decodificadas.append(tarefa_dict)
     return render_template('listar_tarefas_semanais_usuario.html', tarefas_semanais=tarefas_decodificadas)
 
@@ -1118,15 +1361,67 @@ def atualizar_tarefa_semanal(id):
     if request.method == 'POST':
         tarefa.tarefa_semana = request.form['tarefa_semana']
         tarefa.data_para_conclusao = datetime.strptime(request.form['data_para_conclusao'], '%Y-%m-%d')
-        tarefa.to_do = json.dumps({
-            'passos': [request.form[f'passo{i}'] for i in range(1, 7)],
-            'datas': [request.form[f'data{i}'] for i in range(1, 7)]
-        })
+        to_do = {
+            'passos': [request.form.get(f'passo{i}') for i in range(1, 7) if request.form.get(f'passo{i}')],
+            'datas': [request.form.get(f'data{i}') for i in range(1, 7) if request.form.get(f'data{i}')],
+            'status': [request.form.get(f'status{i}') for i in range(1, 7) if request.form.get(f'status{i}')]
+        }
+        tarefa.to_do = json.dumps(to_do)
         tarefa.data_atualizacao = datetime.utcnow()
+
+        # Load and decode 'observacoes' if it exists, otherwise create a new dictionary
+        observacoes = json.loads(tarefa.observacoes) if tarefa.observacoes else {}
+
+        # Update 'status_tarefa' and 'observacao_tarefa' in 'observacoes'
+        observacoes['status_tarefa'] = request.form['status_tarefa']
+        observacoes['observacao_tarefa'] = request.form['observacao_tarefa']
+
+        tarefa.observacoes = json.dumps(observacoes)
+
         db.session.commit()
         return redirect(url_for('listar_tarefas_semanais_usuario'))
 
+    # If 'status' key does not exist in the 'to_do' dictionary, add it with the value 'criado' for each step
+    if 'status' not in tarefa.to_do_decoded:
+        print("Adding status to to_do_decoded")  # print a message to check if this code is being executed
+        new_to_do = tarefa.to_do_decoded.copy()  # create a new dictionary and copy all data from to_do_decoded
+        new_to_do['status'] = ['criado' for _ in
+                               range(len(tarefa.to_do_decoded['passos']))]  # add status to the new dictionary
+        print(new_to_do)  # print the new dictionary to check if status was added
+        tarefa.to_do = json.dumps(new_to_do)  # save the new dictionary to the database
+        db.session.commit()
+
+    # Load and decode 'observacoes' if it exists, otherwise create a new dictionary
+    observacoes = json.loads(tarefa.observacoes) if tarefa.observacoes else {}
+
+    # If 'status_tarefa' and 'observacao_tarefa' are not in 'observacoes'
+    if not ('status_tarefa' in observacoes and 'observacao_tarefa' in observacoes):
+        observacoes['status_tarefa'] = 'pendente'
+        observacoes['observacao_tarefa'] = ''
+        tarefa.observacoes = json.dumps(observacoes)
+        db.session.commit()
+
     return render_template('atualizar_tarefa_semanal.html', tarefa=tarefa)
+
+
+@app.route('/deletar_todo/<int:id>/<int:todo_index>', methods=['POST'])
+@login_required
+def deletar_todo(id, todo_index):
+    tarefa = TarefaSemanal.query.get_or_404(id)
+    to_do_decoded = tarefa.to_do_decoded
+
+    # Remove the to-do at the given index from each list in the to_do_decoded dictionary
+    for key in to_do_decoded:
+        del to_do_decoded[key][todo_index]
+
+    # Save the updated to_do_decoded back to the database
+    tarefa.to_do = json.dumps(to_do_decoded)
+    db.session.commit()
+
+    return redirect(url_for('atualizar_tarefa_semanal', id=id))
+
+
+
 
 
 @app.route('/deletar_tarefa_semanal/<int:id>', methods=['POST'])

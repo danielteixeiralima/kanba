@@ -11,8 +11,7 @@
                 <th>Usuário</th>
                 <th>Tarefa Semana</th>
                 <th>Data para Conclusão</th>
-                <th>Passos</th>
-                <th>Datas</th>
+                <th>Passos e Datas</th>
                 <th>Data de Criação</th>
                 <th>Data de Atualização</th>
                 <th>Ações</th>
@@ -27,14 +26,11 @@
                 <td>{{ tarefa['tarefa_semana'] }}</td>
                 <td>{{ tarefa['data_para_conclusao'] }}</td>
                 <td>
-                    {% for passo in tarefa['to_do_decoded']['passos'] %}
-                        {{ passo }}<br>
-                    {% endfor %}
-                </td>
-                <td>
-                    {% for data in tarefa['to_do_decoded']['datas'] %}
-                        {{ data }}<br>
-                    {% endfor %}
+                    {% if 'passos' in tarefa['to_do_decoded'] and 'datas' in tarefa['to_do_decoded'] %}
+                        {% for passo, data in zip(tarefa['to_do_decoded']['passos'], tarefa['to_do_decoded']['datas']) %}
+                            {{ passo }} - {{ data }}<br>
+                        {% endfor %}
+                    {% endif %}
                 </td>
                 <td>{{ tarefa['data_criacao'] }}</td>
                 <td>{{ tarefa['data_atualizacao'] }}</td>
@@ -50,4 +46,4 @@
             {% endfor %}
         </tbody>
     </table>
-{% endblock %}
+{% endblock content %}

@@ -119,8 +119,8 @@ class TarefaSemanal(db.Model):
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=False)
     usuario = db.relationship('Usuario', backref='tarefas_semanais')
     tarefa_semana = db.Column(db.String(500), nullable=False)
-    to_do = db.Column(db.String(500), nullable=True)  # JSON string contendo os passos e datas
-    observacoes = db.Column(db.String(500), nullable=True)  # JSON string contendo as observações para cada passo
+    to_do = db.Column(db.String(100000), nullable=True)  # JSON string contendo os passos e datas
+    observacoes = db.Column(db.String(100000), nullable=True)  # JSON string contendo as observações para cada passo
     data_para_conclusao = db.Column(db.DateTime, nullable=False)
     data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
     data_atualizacao = db.Column(db.DateTime, onupdate=datetime.utcnow)
@@ -129,7 +129,8 @@ class TarefaSemanal(db.Model):
     def to_do_decoded(self):
         return json.loads(self.to_do)
 
-
+    def observacoes_decoded(self):
+        return json.loads(self.observacoes)
 
 
 
