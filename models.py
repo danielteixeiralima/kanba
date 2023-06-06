@@ -28,7 +28,7 @@ class Resposta(db.Model):
     id_empresa = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
     pergunta = db.Column(db.Text, nullable=False)
     resposta = db.Column(db.Text)
-    classificacao = db.Column(db.String(200))  # Nova coluna
+    classificacao = db.Column(db.String(200))
     data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
     data_atualizacao = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
@@ -119,8 +119,8 @@ class TarefaSemanal(db.Model):
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=False)
     usuario = db.relationship('Usuario', backref='tarefas_semanais')
     tarefa_semana = db.Column(db.String(500), nullable=False)
-    to_do = db.Column(db.String(100000), nullable=True)  # JSON string contendo os passos e datas
-    observacoes = db.Column(db.String(100000), nullable=True)  # JSON string contendo as observações para cada passo
+    to_do = db.Column(db.String(10000), nullable=True)  # JSON string contendo os passos e datas
+    observacoes = db.Column(db.String(10000), nullable=True)  # JSON string contendo as observações para cada passo
     data_para_conclusao = db.Column(db.DateTime, nullable=False)
     data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
     data_atualizacao = db.Column(db.DateTime, onupdate=datetime.utcnow)
