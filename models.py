@@ -44,14 +44,14 @@ class Usuario(db.Model, UserMixin):
     data_entrada = db.Column(db.DateTime, default=datetime.utcnow)
     cargo = db.Column(db.String(80), nullable=False)
     status = db.Column(db.String(20), nullable=False)
-    sprint = db.Column(db.String(200))  # Novo campo
-    dayling_1 = db.Column(db.String(200))  # Novo campo
-    dayling_2 = db.Column(db.String(200))  # Novo campo
-    dayling_3 = db.Column(db.String(200))  # Novo campo
-    dayling_4 = db.Column(db.String(200))  # Novo campo
-    dayling_5 = db.Column(db.String(200))  # Novo campo
+    sprint = db.Column(db.String(200))
+    dayling_1 = db.Column(db.String(200))
+    dayling_2 = db.Column(db.String(200))
+    dayling_3 = db.Column(db.String(200))
+    dayling_4 = db.Column(db.String(200))
+    dayling_5 = db.Column(db.String(200))
     password_hash = db.Column(db.String(128))
-    is_admin = db.Column(db.Boolean, default=False)  # Novo campo
+    is_admin = db.Column(db.Boolean, default=False)
 
     @property
     def password(self):
@@ -80,7 +80,7 @@ class KR(db.Model):
     id_empresa = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
     id_okr = db.Column(db.Integer, db.ForeignKey('okr.id'), nullable=False)
     texto = db.Column(db.String(200))
-    data_inclusao = db.Column(db.DateTime, default=datetime.utcnow)  # Novo campo
+    data_inclusao = db.Column(db.DateTime, default=datetime.utcnow)
     okr = db.relationship('OKR', backref='krs')
 
 
@@ -106,9 +106,9 @@ class Sprint(db.Model):
     nome_empresa = db.Column(db.String(120), nullable=False)
     prioridade = db.Column(db.Integer, nullable=False)
     tarefa = db.Column(db.Text, nullable=False)
-    usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=True)  # Alterado para nullable=True
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=True)
     usuario = db.relationship('Usuario', backref='sprints')
-    usuario_grupo = db.Column(db.String(120), nullable=True)  # Novo campo
+    usuario_grupo = db.Column(db.String(120), nullable=True)
     data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -119,8 +119,8 @@ class TarefaSemanal(db.Model):
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=False)
     usuario = db.relationship('Usuario', backref='tarefas_semanais')
     tarefa_semana = db.Column(db.String(500), nullable=False)
-    to_do = db.Column(db.String(10000), nullable=True)  # JSON string contendo os passos e datas
-    observacoes = db.Column(db.String(10000), nullable=True)  # JSON string contendo as observações para cada passo
+    to_do = db.Column(db.String(10000), nullable=True)
+    observacoes = db.Column(db.String(10000), nullable=True)
     data_para_conclusao = db.Column(db.DateTime, nullable=False)
     data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
     data_atualizacao = db.Column(db.DateTime, onupdate=datetime.utcnow)

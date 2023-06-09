@@ -1571,6 +1571,33 @@ def cadastrar_tarefa_semanal():
     return render_template('cadastrar_tarefas_semanais_usuario.html', empresas=empresas, usuarios=usuarios)
 
 
+@app.route('/selecionar_empresa_mural', methods=['GET', 'POST'])
+@login_required
+def selecionar_empresa_mural():
+    empresas = Empresa.query.all()
+    if request.method == 'POST':
+        empresa_id = request.form.get('empresa')
+        return redirect(url_for('mural', empresa_id=empresa_id))
+    return render_template('selecionar_empresa_mural.html', empresas=empresas)
+
+
+
+
+
+@app.route('/mural/<int:empresa_id>', methods=['GET', 'POST'])
+@login_required
+def mural(empresa_id):
+    empresa = Empresa.query.get(empresa_id)
+    if not empresa:
+        flash('Empresa não encontrada.', 'error')
+        return redirect(url_for('index'))
+
+    objetivos = OKR.query.filter_by(id_empresa=empresa_id).all()
+    krs = KR.query.filter_by(id_empresa=empresa_id).all()
+    macro_acoes = MacroAcao.query.filter_by(empresa_id=empresa_id).all()
+    tarefas = TarefaSemanal.query.filter_by(empresa_id=empresa_id).all()
+
+    return render_template('mural.html', empresa=empresa, objetivos=objetivos, krs=krs, macro_acoes=macro_acoes, tarefas=tarefas)
 
 
 
