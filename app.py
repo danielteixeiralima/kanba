@@ -1600,6 +1600,19 @@ def mural(empresa_id):
     return render_template('mural.html', empresa=empresa, objetivos=objetivos, krs=krs, macro_acoes=macro_acoes, tarefas=tarefas)
 
 
+@app.route('/revisao_sprint_semana', methods=['GET', 'POST'])
+def revisao_sprint_semana():
+    if request.method == 'POST':
+        empresa_id = request.form.get('empresa_id')
+        return redirect(url_for('listar_revisao_sprint_semana', empresa_id=empresa_id))
+    empresas = Empresa.query.all()
+    return render_template('revisao_sprint_semana.html', empresas=empresas)
+
+
+@app.route('/listar_revisao_sprint_semana/<int:empresa_id>', methods=['GET'])
+def listar_revisao_sprint_semana(empresa_id):
+    sprints = Sprint.query.filter_by(empresa_id=empresa_id).all()
+    return render_template('listar_revisao_sprint_semana.html', sprints=sprints)
 
 
 
