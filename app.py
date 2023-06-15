@@ -10,7 +10,14 @@ from dotenv import load_dotenv
 import os
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required
 from werkzeug.security import generate_password_hash, check_password_hash
-
+from flask_mail import Mail, Message
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from email.mime.text import MIMEText
+import base64
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 
 load_dotenv()  # Carrega as variáveis de ambiente do arquivo .env
@@ -27,11 +34,58 @@ db.init_app(app)
 app.jinja_env.globals.update(zip=zip)
 app.jinja_env.globals.update(len=len)
 
+# Carrega as credenciais do arquivo JSON
+credentials = service_account.Credentials.from_service_account_file(
+    'emialappbizarte-03be77ba1989.json',
+    scopes=['https://www.googleapis.com/auth/gmail.send'])
+
+# Constrói o serviço de e-mail
+service = build('gmail', 'v1', credentials=credentials)
+
 # Configuração do gerenciador de login
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+def gerar_email(usuario):
+    empresa = usuario.empresa
+    tarefas = "\n".join([sprint.tarefa for sprint in usuario.sprints])
+    objetivos = empresa.objetivos_principais
+    krs = "\n".join([f"{kr.texto} (OKR: {kr.okr.objetivo})" for okr in empresa.okrs for kr in okr.krs])
+
+    titulo = f'Sprint da Semana {empresa.nome_contato}'
+    corpo = f'Seguindo os nossos objetivos que são:\n\n{objetivos}\n\nMedidos pelos Seguintes KR\'s:\n\n{krs}\n\nEssas são as suas tarefas para essa semana:\n\n{tarefas}'
+
+    return titulo, corpo
+
+
+
+@app.route('/get_email_content/<int:usuario_id>', methods=['GET'])
+def get_email_content(usuario_id):
+    usuario = Usuario.query.get(usuario_id)
+    titulo, corpo = gerar_email(usuario)
+    return jsonify({'titulo': titulo, 'corpo': corpo})
+
+
+@app.route('/enviar_email/<int:usuario_id>', methods=['GET', 'POST'])
+def enviar_email(usuario_id):
+    usuario = Usuario.query.get(usuario_id)
+    titulo, corpo = gerar_email(usuario)
+
+    msg = MIMEMultipart()
+    msg['From'] = 'ai@bizarte.com.br'
+    msg['To'] = usuario.email
+    msg['Subject'] = titulo
+    msg.attach(MIMEText(corpo, 'plain'))
+
+    server = smtplib.SMTP('smtp.gmail.com', 587)
+    server.starttls()
+    server.login('ai@bizarte.com.br', 'Omega@801')
+    text = msg.as_string()
+    server.sendmail('ai@bizarte.com.br', usuario.email, text)
+    server.quit()
+
+    return '', 204
 
 
 @app.cli.command("create-db")

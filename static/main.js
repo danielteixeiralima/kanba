@@ -45,6 +45,22 @@ $(document).ready(function(){
 
         toDoCount++;
     });
+    $('#emailModal').on('show.bs.modal', function (event) {
+        var button = $(event.relatedTarget) // Botão que acionou o modal
+        var usuarioId = button.data('usuario') // Extrai a informação do data-* attributes
+
+        // Busca o conteúdo do email do servidor
+        $.get('/get_email_content/' + usuarioId, function(data) {
+            $('#emailContent').html('<h5>' + data.titulo + '</h5><p>' + data.corpo.replace(/\n/g, '<br>') + '</p>');
+        });
+
+        // Adiciona um listener ao botão de enviar email para enviar o email quando clicado
+        $('#sendEmailButton').off('click').on('click', function() {
+            $.post('/enviar_email/' + usuarioId, function() {
+                $('#emailModal').modal('hide');
+            });
+        });
+    });
 });
 function updateObjectives() {
     var objetivoOriginal = $('#objetivo').data('original');
