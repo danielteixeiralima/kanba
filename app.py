@@ -37,8 +37,8 @@ app.jinja_env.globals.update(zip=zip)
 app.jinja_env.globals.update(len=len)
 
 # As credenciais que você obteve do Google Cloud Console
-CLIENT_ID = '946954626311-q3p3c1opc3r0nirtom5agn3q63rcdens.apps.googleusercontent.com'
-CLIENT_SECRET = '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'
+CLIENT_ID = '1027763865144-rmpcned2tf61h4ci22gkt561aefu6qkr.apps.googleusercontent.com'
+CLIENT_SECRET = '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'
 
 # As permissões que seu aplicativo precisa
 SCOPES = ['https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/gmail.readonly']
@@ -54,7 +54,7 @@ if not creds or not creds.valid:
     else:
         flow = InstalledAppFlow.from_client_secrets_file(
             'credentials.json', SCOPES)
-        creds = flow.run_local_server(port=5000)
+        creds = flow.run_local_server(port=5000, host='127.0.0.1')
     # Salve as credenciais para a próxima execução
     with open('token.json', 'w') as token:
         token.write(creds.to_json())
