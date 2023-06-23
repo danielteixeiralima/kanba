@@ -1645,7 +1645,10 @@ def listar_tarefas_semanais_usuario():
     for tarefa in tarefas_semanais:
         tarefa_dict = tarefa.__dict__
         tarefa_dict['to_do_decoded'] = tarefa.to_do_decoded
-        tarefa_dict['observacoes_decoded'] = json.loads(tarefa.observacoes)  # Adicionado aqui
+        if tarefa.observacoes is not None:
+            tarefa_dict['observacoes_decoded'] = json.loads(tarefa.observacoes)  # Adicionado aqui
+        else:
+            tarefa_dict['observacoes_decoded'] = None  # ou algum valor padrão
         tarefa_dict['usuario'] = tarefa.usuario.nome
         tarefas_decodificadas.append(tarefa_dict)
     return render_template('listar_tarefas_semanais_usuario.html', tarefas_semanais=tarefas_decodificadas)
