@@ -1,2 +1,4 @@
 .env
 *.db
+credentials.json
+token.json
