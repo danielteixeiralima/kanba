@@ -19,7 +19,9 @@
                             <div class="form-group">
                                 <label for="usuario" style="color: white;">Nome do Usuário:</label>
                                 <select class="form-control" id="usuario" name="usuario" required>
-                                    <!-- Os usuários serão preenchidos dinamicamente pelo JavaScript -->
+                                    {% for usuario in usuarios %}
+                                        <option value="{{ usuario.id }}">{{ usuario.nome }}</option>
+                                    {% endfor %}
                                 </select>
                             </div>
                             <div class="form-group">

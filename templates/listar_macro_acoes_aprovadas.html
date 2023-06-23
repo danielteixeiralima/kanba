@@ -20,7 +20,7 @@
             {% for acao in macro_acoes %}
             <tr>
                 <td>{{ acao.id }}</td>
-                <td>{{ acao.empresa }}</td>
+                <td>{{ acao.kr.okr.empresa.nome_contato }}</td>
                 <td>{{ acao.objetivo }}</td>
                 <td>{{ acao.kr.texto }}</td>
                 <td>{{ acao.texto }}</td>
@@ -35,4 +35,3 @@
         </tbody>
     </table>
 {% endblock %}
-

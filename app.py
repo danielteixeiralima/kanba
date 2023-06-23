@@ -21,6 +21,8 @@ from googleapiclient.errors import HttpError
 import schedule
 import time
 import re
+from flask_login import current_user
+
 
 load_dotenv()  # Carrega as variáveis de ambiente do arquivo .env
 
@@ -389,12 +391,17 @@ def home():
 @app.route('/empresas', methods=['GET'])
 @login_required
 def listar_empresas():
-    empresas = Empresa.query.all()
+    if current_user.is_admin:
+        empresas = Empresa.query.all()
+    else:
+        empresas = Empresa.query.filter_by(id=current_user.id_empresa).all()
     return render_template('listar_empresas.html', empresas=empresas)
 
 @app.route('/cadastrar/empresa', methods=['GET', 'POST'])
 @login_required
 def cadastrar_empresa():
+    if not current_user.is_admin:
+        abort(403)  # Forbidden
     if request.method == 'POST':
         empresa = Empresa(
             nome_contato=request.form.get('nome_contato'),
@@ -416,6 +423,8 @@ def cadastrar_empresa():
 @login_required
 def atualizar_empresa(id):
     empresa = Empresa.query.get(id)
+    if empresa.id != current_user.id_empresa and not current_user.is_admin:
+        abort(403)  # Forbidden
     if request.method == 'POST':
         empresa.nome_contato = request.form['nome_contato']
         empresa.email_contato = request.form['email_contato']
@@ -433,10 +442,13 @@ def atualizar_empresa(id):
 @app.route('/deletar_empresa/<int:id>', methods=['POST'])
 @login_required
 def deletar_empresa(id):
+    if not current_user.is_admin:
+        abort(403)  # Forbidden
     empresa = Empresa.query.get_or_404(id)
     db.session.delete(empresa)
     db.session.commit()
     return redirect(url_for('listar_empresas'))
+
 
 @app.route('/cadastrar/usuario', methods=['GET', 'POST'])
 @login_required
@@ -451,25 +463,35 @@ def cadastrar_usuario():
             id_empresa=request.form.get('id_empresa'),
             cargo=request.form.get('cargo'),
             status=request.form.get('status'),
-            password=hashed_password
+            password=request.form.get('password'),
         )
         db.session.add(usuario)
         db.session.commit()
         return redirect(url_for('listar_usuarios'))
-    empresas = Empresa.query.all()
+    if current_user.is_admin:
+        empresas = Empresa.query.all()
+    else:
+        empresas = Empresa.query.filter_by(id=current_user.id_empresa).all()
     return render_template('cadastrar_usuario.html', empresas=empresas)
 
 
 @app.route('/usuarios', methods=['GET'])
 @login_required
 def listar_usuarios():
-    usuarios = Usuario.query.all()
+    if current_user.is_admin:
+        usuarios = Usuario.query.all()
+    else:
+        usuarios = Usuario.query.filter_by(id_empresa=current_user.id_empresa).all()
     return render_template('listar_usuarios.html', usuarios=usuarios)
+
+
 
 @app.route('/atualizar/usuario/<int:id>', methods=['GET', 'POST'])
 @login_required
 def atualizar_usuario(id):
     usuario = Usuario.query.get(id)
+    if usuario.id_empresa != current_user.id_empresa and not current_user.is_admin:
+        abort(403)  # Forbidden
     if request.method == 'POST':
         usuario.nome = request.form['nome']
         usuario.sobrenome = request.form['sobrenome']
@@ -478,10 +500,18 @@ def atualizar_usuario(id):
         usuario.id_empresa = request.form['id_empresa']  # Alterado aqui
         usuario.cargo = request.form['cargo']
         usuario.status = request.form['status']
+        if request.form['password']:
+            usuario.password = request.form['password']
         db.session.commit()
         return redirect(url_for('listar_usuarios'))
-    empresas = Empresa.query.all()
+    if current_user.is_admin:
+        empresas = Empresa.query.all()
+    else:
+        empresas = Empresa.query.filter_by(id=current_user.id_empresa).all()
     return render_template('atualizar_usuario.html', usuario=usuario, empresas=empresas)
+
+
+
 
 
 
@@ -671,22 +701,27 @@ def cadastrar_okr():
             return redirect(url_for('listar_okrs'))  # Redireciona para a página de listagem de OKRs
         except ValueError:
             flash('A data fornecida é inválida. Use o formato YYYY-MM-DD.', 'error')
-    empresas = Empresa.query.all()
+    if current_user.is_admin:
+        empresas = Empresa.query.all()
+    else:
+        empresas = Empresa.query.filter_by(id=current_user.id_empresa).all()
     return render_template('cadastrar_okr.html', empresas=empresas)
-
 
 @app.route('/listar/okrs', methods=['GET'])
 @login_required
 def listar_okrs():
-    okrs = OKR.query.all()  # Substitua OKR pela classe do seu modelo de OKR
+    if current_user.is_admin:
+        okrs = OKR.query.all()  # Substitua OKR pela classe do seu modelo de OKR
+    else:
+        okrs = OKR.query.filter_by(id_empresa=current_user.id_empresa).all()
     return render_template('listar_okrs.html', okrs=okrs)
-
 
 @app.route('/atualizar/okr/<int:id>', methods=['GET', 'POST'])
 @login_required
 def atualizar_okr(id):
     okr = OKR.query.get(id)
-    empresas = Empresa.query.all()
+    if okr.id_empresa != current_user.id_empresa and not current_user.is_admin:
+        abort(403)  # Forbidden
     if request.method == 'POST':
         okr.id_empresa = request.form['empresa']
         okr.objetivo = request.form['objetivo']
@@ -694,15 +729,18 @@ def atualizar_okr(id):
         okr.data_fim = datetime.strptime(request.form['data_fim'], "%Y-%m-%d")
         db.session.commit()
         return redirect(url_for('listar_okrs'))
+    if current_user.is_admin:
+        empresas = Empresa.query.all()
+    else:
+        empresas = Empresa.query.filter_by(id=current_user.id_empresa).all()
     return render_template('atualizar_okr.html', okr=okr, empresas=empresas)
-
-
-
 
 @app.route('/deletar/okr/<int:id>', methods=['POST'])
 @login_required
 def deletar_okr(id):
     okr = OKR.query.get(id)
+    if okr.id_empresa != current_user.id_empresa and not current_user.is_admin:
+        abort(403)  # Forbidden
     for kr in okr.krs:
         db.session.delete(kr)
     db.session.delete(okr)
@@ -714,10 +752,11 @@ def deletar_okr(id):
 @app.route('/listar/krs', methods=['GET'])
 @login_required
 def listar_krs():
-    krs = KR.query.all()
+    if current_user.is_admin:
+        krs = KR.query.all()
+    else:
+        krs = KR.query.filter_by(id_empresa=current_user.id_empresa).all()
     return render_template('listar_krs.html', krs=krs)
-
-
 
 @app.route('/cadastrar/kr', methods=['GET', 'POST'])
 @login_required
@@ -737,16 +776,18 @@ def cadastrar_kr():
         db.session.commit()
         return redirect(url_for('listar_krs'))
 
-    empresas = Empresa.query.all()
+    if current_user.is_admin:
+        empresas = Empresa.query.all()
+    else:
+        empresas = Empresa.query.filter_by(id=current_user.id_empresa).all()
     return render_template('cadastrar_kr.html', empresas=empresas)
-
-
-
 
 @app.route('/atualizar/kr/<int:id>', methods=['GET', 'POST'])
 @login_required
 def atualizar_kr(id):
     kr = KR.query.get(id)
+    if kr.id_empresa != current_user.id_empresa and not current_user.is_admin:
+        abort(403)  # Forbidden
     if request.method == 'POST':
         id_empresa = request.form['empresa']
         id_okr = request.form['okr']
@@ -760,10 +801,14 @@ def atualizar_kr(id):
         db.session.commit()
         return redirect(url_for('listar_krs'))
 
-    empresas = Empresa.query.all()
+    if current_user.is_admin:
+        empresas = Empresa.query.all()
+    else:
+        empresas = Empresa.query.filter_by(id=current_user.id_empresa).all()
     okrs = OKR.query.filter_by(id_empresa=kr.id_empresa).all()
 
     return render_template('atualizar_kr.html', empresas=empresas, kr=kr, okrs=okrs)
+
 
 
 
@@ -774,6 +819,9 @@ def update_kr(krId):
     okrId = request.form['objetivo']  # assumindo que isso retorna um id de OKR
     kr = KR.query.get(krId)
 
+    if kr.id_empresa != current_user.id_empresa and not current_user.is_admin:
+        abort(403)  # Forbidden
+
     # Obtenha a instância OKR e atribua-a ao KR.
     okr = OKR.query.get(okrId)
     if okr is None:
@@ -783,11 +831,12 @@ def update_kr(krId):
     db.session.commit()
     return 'OK', 200
 
-
-
 @app.route('/get_okrs/<int:empresa_id>', methods=['GET'])
 @login_required
 def get_okrs(empresa_id):
+    if empresa_id != current_user.id_empresa and not current_user.is_admin:
+        abort(403)  # Forbidden
+
     empresa = Empresa.query.get(empresa_id)
     if not empresa:
         abort(404)  # Retorna um erro 404 se a empresa não for encontrada
@@ -800,13 +849,14 @@ def get_okrs(empresa_id):
 
     return jsonify(okrs_dict)
 
-
-
-
 @app.route('/deletar/kr/<int:id>', methods=['POST'])
 @login_required
 def deletar_kr(id):
     kr = KR.query.get(id)
+
+    if kr.id_empresa != current_user.id_empresa and not current_user.is_admin:
+        abort(403)  # Forbidden
+
     db.session.delete(kr)
     db.session.commit()
     return redirect(url_for('listar_krs'))
@@ -814,16 +864,23 @@ def deletar_kr(id):
 @app.route('/get_objectives/<int:empresa_id>', methods=['GET'])
 @login_required
 def get_objectives(empresa_id):
+    if empresa_id != current_user.id_empresa and not current_user.is_admin:
+        abort(403)  # Forbidden
+
     okrs = OKR.query.filter_by(id_empresa=empresa_id).all()
     objectives = [{'id': okr.id, 'objetivo': okr.objetivo} for okr in okrs]
     return jsonify(objectives)
 
 
 
+
 @app.route('/listar_macro_acao')
 @login_required
 def listar_macro_acao():
-    krs = KR.query.all()  # Busca todos os KR do banco de dados
+    if current_user.is_admin:
+        krs = KR.query.all()  # Busca todos os KR do banco de dados se for admin
+    else:
+        krs = KR.query.filter_by(id_empresa=current_user.id_empresa).all()  # Busca apenas os KR da empresa do usuário
     return render_template('listar_macro_acao.html', krs=krs)
 
 
@@ -956,6 +1013,10 @@ def mostrar_resultados(kr_id):
 @login_required
 def atualizar_macro_acao(id):
     macro_acao = MacroAcao.query.get(id)
+
+    if macro_acao.kr.id_empresa != current_user.id_empresa and not current_user.is_admin:
+        abort(403)  # Forbidden
+
     if request.method == 'POST':
         macro_acao.texto = request.form['texto']
         macro_acao.aprovada = True if request.form['aprovada'] == 'sim' else False
@@ -964,20 +1025,28 @@ def atualizar_macro_acao(id):
     return render_template('atualizar_macro_acao.html', acao=macro_acao)
 
 
+
 @app.route('/deletar_macro_acao/<int:id>', methods=['GET'])
 @login_required
 def deletar_macro_acao(id):
     macro_acao = MacroAcao.query.get(id)
+
+    if macro_acao.kr.id_empresa != current_user.id_empresa and not current_user.is_admin:
+        abort(403)  # Forbidden
+
     db.session.delete(macro_acao)
     db.session.commit()
     return redirect(url_for('listar_macro_acoes_aprovadas'))
 
-
 @app.route('/listar_macro_acoes_aprovadas', methods=['GET'])
 @login_required
 def listar_macro_acoes_aprovadas():
-    macro_acoes = MacroAcao.query.all()
+    if current_user.is_admin:
+        macro_acoes = MacroAcao.query.all()  # Busca todas as MacroAcoes se for admin
+    else:
+        macro_acoes = MacroAcao.query.join(KR).filter(KR.id_empresa == current_user.id_empresa).all()  # Busca apenas as MacroAcoes da empresa do usuário
     return render_template('listar_macro_acoes_aprovadas.html', macro_acoes=macro_acoes)
+
 
 
 @app.route('/montagem_sprint_semana')
@@ -1261,8 +1330,12 @@ def resultado_sprint():
 @app.route('/listar_sprints_semana', methods=['GET'])
 @login_required
 def listar_sprints_semana():
-    sprints = Sprint.query.all()
+    if current_user.is_admin:
+        sprints = Sprint.query.all()  # Busca todos os sprints se for admin
+    else:
+        sprints = Sprint.query.filter_by(empresa_id=current_user.id_empresa).all()  # Busca apenas os sprints da empresa do usuário
     return render_template('listar_sprints_semana.html', sprints=sprints)
+
 
 
 @app.route('/atualizar_sprint/<int:id>', methods=['GET', 'POST'])
@@ -1564,7 +1637,10 @@ def aprovar_tarefas():
 @app.route('/listar_tarefas_semanais_usuario', methods=['GET'])
 @login_required
 def listar_tarefas_semanais_usuario():
-    tarefas_semanais = TarefaSemanal.query.all()
+    if current_user.is_admin:
+        tarefas_semanais = TarefaSemanal.query.all()  # Busca todas as tarefas se for admin
+    else:
+        tarefas_semanais = TarefaSemanal.query.filter_by(empresa_id=current_user.id_empresa, usuario_id=current_user.id).all()  # Busca apenas as tarefas da empresa do usuário e atribuídas a ele
     tarefas_decodificadas = []
     for tarefa in tarefas_semanais:
         tarefa_dict = tarefa.__dict__
@@ -1575,11 +1651,15 @@ def listar_tarefas_semanais_usuario():
     return render_template('listar_tarefas_semanais_usuario.html', tarefas_semanais=tarefas_decodificadas)
 
 
-
 @app.route('/atualizar_tarefa_semanal/<int:id>', methods=['GET', 'POST'])
 @login_required
 def atualizar_tarefa_semanal(id):
     tarefa = TarefaSemanal.query.get_or_404(id)
+
+    # Verifique se o usuário tem permissão para atualizar esta tarefa
+    if not current_user.is_admin and (tarefa.empresa_id != current_user.id_empresa or tarefa.usuario_id != current_user.id):
+        abort(403)  # Forbidden
+
     db.session.refresh(tarefa)
 
     if request.method == 'POST':
@@ -1634,6 +1714,7 @@ def atualizar_tarefa_semanal(id):
         db.session.commit()
 
     return render_template('atualizar_tarefa_semanal.html', tarefa=tarefa_dict, observacoes=observacoes)
+
 
 
 
@@ -1701,10 +1782,17 @@ def cadastrar_macro_acao():
         db.session.commit()
         return redirect(url_for('listar_macro_acoes_aprovadas'))  # Redirecionamento atualizado
 
-    empresas = Empresa.query.all()
-    objetivos = OKR.query.all()
-    krs = KR.query.all()
+    if current_user.is_admin:
+        empresas = Empresa.query.all()
+        objetivos = OKR.query.all()
+        krs = KR.query.all()
+    else:
+        empresas = Empresa.query.filter_by(id=current_user.id_empresa).all()
+        objetivos = OKR.query.filter_by(id_empresa=current_user.id_empresa).all()
+        krs = KR.query.filter_by(id_empresa=current_user.id_empresa).all()
+
     return render_template('cadastrar_macro_acao.html', empresas=empresas, objetivos=objetivos, krs=krs)
+
 
 
 @app.route('/cadastrar/sprint', methods=['GET', 'POST'])
@@ -1735,36 +1823,44 @@ def cadastrar_sprint():
         db.session.commit()
         return redirect(url_for('listar_sprints_semana'))
 
+    if current_user.is_admin:
+        empresas = Empresa.query.all()
+        usuarios = Usuario.query.all()
+    else:
+        empresas = Empresa.query.filter_by(id=current_user.id_empresa).all()
+        usuarios = Usuario.query.filter_by(id_empresa=current_user.id_empresa).all()
 
-    empresas = Empresa.query.all()
-    usuarios = Usuario.query.all()
     return render_template('cadastrar_sprint.html', empresas=empresas, usuarios=usuarios)
 
 
 @app.route('/get_usuarios/<int:empresa_id>')
 @login_required
 def get_usuarios(empresa_id):
-    usuarios = Usuario.query.filter_by(id_empresa=empresa_id).all()
-    return jsonify([{'id': usuario.id, 'nome': usuario.nome} for usuario in usuarios])
-
-
-
+    if current_user.is_admin or empresa_id == current_user.id_empresa:
+        usuarios = Usuario.query.filter_by(id_empresa=empresa_id).all()
+        return jsonify([{'id': usuario.id, 'nome': usuario.nome} for usuario in usuarios])
+    else:
+        abort(403)  # Forbidden
 
 
 @app.route('/cadastrar/tarefa_semanal', methods=['GET', 'POST'])
 @login_required
 def cadastrar_tarefa_semanal():
+    usuario = Usuario.query.get(current_user.id)  # Obtenha o usuário atualmente logado
+    empresa = Empresa.query.get(usuario.id_empresa)  # Obtenha a empresa associada ao usuário
+
+    if usuario.is_admin:
+        empresas = Empresa.query.all()  # Obtenha todas as empresas para um administrador
+        usuarios = Usuario.query.all()  # Obtenha todos os usuários para um administrador
+    else:
+        empresas = [empresa]  # Apenas a empresa do usuário para um usuário final
+        usuarios = [usuario]  # Apenas o usuário logado para um usuário final
+
     if request.method == 'POST':
-        id_empresa = int(request.form.get('empresa', '0'))
-        id_usuario = int(request.form.get('usuario', '0'))
+        empresa_id = request.form['empresa']
+        usuario_id = request.form['usuario']
         tarefa_semana = request.form['tarefa_semana']
         data_para_conclusao_str = request.form['data_para_conclusao']
-
-        empresa = db.session.get(Empresa, id_empresa)
-        usuario = db.session.get(Usuario, id_usuario)
-
-        if empresa is None or usuario is None:
-            return "Empresa ou Usuário não encontrado", 404
 
         # Converta a string da data para um objeto datetime
         data_para_conclusao = datetime.strptime(data_para_conclusao_str, '%Y-%m-%d')
@@ -1797,8 +1893,8 @@ def cadastrar_tarefa_semanal():
         to_do = json.dumps({"passos": passos, "datas": datas})
 
         tarefa_semanal = TarefaSemanal(
-            empresa_id=empresa.id,
-            usuario_id=usuario.id,
+            empresa_id=empresa_id,
+            usuario_id=usuario_id,
             tarefa_semana=tarefa_semana,
             to_do=to_do,
             data_para_conclusao=data_para_conclusao,
@@ -1807,9 +1903,10 @@ def cadastrar_tarefa_semanal():
         db.session.commit()
         return redirect(url_for('listar_tarefas_semanais_usuario'))
 
-    empresas = Empresa.query.all()
-    usuarios = Usuario.query.all()
     return render_template('cadastrar_tarefas_semanais_usuario.html', empresas=empresas, usuarios=usuarios)
+
+
+
 
 
 @app.route('/selecionar_empresa_mural', methods=['GET', 'POST'])
