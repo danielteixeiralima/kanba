@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Montagem de Email</h2>
+<form action="{{ url_for('listar_email_tarefas') }}" method="post">
+    <label for="empresa">Selecione a empresa:</label>
+    <select name="empresa" id="empresa">
+        {% for empresa in empresas %}
+        <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
+        {% endfor %}
+    </select>
+    <input type="submit" value="OK">
+</form>
+{% endblock %}

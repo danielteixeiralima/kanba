@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Tarefas da Semana</h1>
+    <table class="styled-table">
+        <thead>
+            <tr>
+                <th>Usuário</th>
+                <th>Tarefas da Semana</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for usuario_id, tarefas in tarefas_por_usuario.items() %}
+            <tr>
+                <td>{{ tarefas[0].usuario.nome }}</td>
+                <td>
+                    {% for tarefa in tarefas %}
+                    <p>{{ tarefa.tarefa_semana }}</p>
+                    {% endfor %}
+                </td>
+                <td>
+                    <a href="{{ url_for('enviar_email', usuario_id=usuario_id) }}" class="btn btn-primary">Enviar Email</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

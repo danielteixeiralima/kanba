@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, a
 from models import db, Empresa, Resposta, Usuario, OKR, KR, MacroAcao, Sprint, TarefaSemanal
 import requests
 import json
-import time
+import threading
 from flask_migrate import Migrate
 from flask import jsonify
 from datetime import datetime
@@ -10,15 +10,17 @@ from dotenv import load_dotenv
 import os
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_mail import Mail, Message
-from google.oauth2 import service_account
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from email.mime.text import MIMEText
 import base64
-import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-
+from googleapiclient.errors import HttpError
+import schedule
+import time
+import re
 
 load_dotenv()  # Carrega as variáveis de ambiente do arquivo .env
 
@@ -34,13 +36,31 @@ db.init_app(app)
 app.jinja_env.globals.update(zip=zip)
 app.jinja_env.globals.update(len=len)
 
-# Carrega as credenciais do arquivo JSON
-credentials = service_account.Credentials.from_service_account_file(
-    'emialappbizarte-03be77ba1989.json',
-    scopes=['https://www.googleapis.com/auth/gmail.send'])
+# As credenciais que você obteve do Google Cloud Console
+CLIENT_ID = '946954626311-q3p3c1opc3r0nirtom5agn3q63rcdens.apps.googleusercontent.com'
+CLIENT_SECRET = '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'
+
+# As permissões que seu aplicativo precisa
+SCOPES = ['https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/gmail.readonly']
+
+
+# Carrega as credenciais do arquivo
+creds = None
+if os.path.exists('token.json'):
+    creds = Credentials.from_authorized_user_file('token.json')
+if not creds or not creds.valid:
+    if creds and creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+    else:
+        flow = InstalledAppFlow.from_client_secrets_file(
+            'credentials.json', SCOPES)
+        creds = flow.run_local_server(port=5000)
+    # Salve as credenciais para a próxima execução
+    with open('token.json', 'w') as token:
+        token.write(creds.to_json())
 
 # Constrói o serviço de e-mail
-service = build('gmail', 'v1', credentials=credentials)
+service = build('gmail', 'v1', credentials=creds)
 
 # Configuração do gerenciador de login
 login_manager = LoginManager()
@@ -58,14 +78,11 @@ def gerar_email(usuario):
 
     return titulo, corpo
 
-
-
 @app.route('/get_email_content/<int:usuario_id>', methods=['GET'])
 def get_email_content(usuario_id):
     usuario = Usuario.query.get(usuario_id)
     titulo, corpo = gerar_email(usuario)
     return jsonify({'titulo': titulo, 'corpo': corpo})
-
 
 @app.route('/enviar_email/<int:usuario_id>', methods=['GET', 'POST'])
 def enviar_email(usuario_id):
@@ -78,15 +95,165 @@ def enviar_email(usuario_id):
     msg['Subject'] = titulo
     msg.attach(MIMEText(corpo, 'plain'))
 
-    server = smtplib.SMTP('smtp.gmail.com', 587)
-    server.starttls()
-    server.login('ai@bizarte.com.br', 'Omega@801')
-    text = msg.as_string()
-    server.sendmail('ai@bizarte.com.br', usuario.email, text)
-    server.quit()
+    raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    message = service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
 
-    return '', 204
+    return redirect(url_for('listar_email_tarefas'))
 
+
+def gerar_email_tarefa(tarefa):
+    empresa_id = tarefa.empresa_id
+    usuario = tarefa.usuario.nome
+    tarefa_semana = tarefa.tarefa_semana
+    passos_datas = "\n\n".join([f"* {passo} - {data}" for passo, data in zip(tarefa.to_do_decoded['passos'], tarefa.to_do_decoded['datas'])])
+
+    titulo = f'Novo Sprint Semanal: Tarefa {tarefa.id}'
+
+    corpo = f"""
+    Olá {usuario},
+
+    Estamos iniciando um novo sprint semanal e temos algumas tarefas e sugestões de to-do's para você. 
+
+    **Tarefa da Semana:** {tarefa_semana}
+
+    Aqui estão os passos e datas sugeridos para esta semana:
+
+    {passos_datas}
+
+    Lembre-se, você pode responder a este e-mail a qualquer momento com comentários ou perguntas sobre a tarefa. Suas interações são valiosas e nos ajudarão a planejar melhor o próximo sprint.
+
+    Agradecemos sua colaboração e desejamos uma semana produtiva!
+
+    Atenciosamente,
+    Bizarte
+    """
+
+    return titulo, corpo
+
+
+
+
+@app.route('/enviar_email_tarefa/<int:tarefa_id>', methods=['GET', 'POST'])
+def enviar_email_tarefa(tarefa_id):
+    tarefa = TarefaSemanal.query.get(tarefa_id)
+    titulo, corpo = gerar_email_tarefa(tarefa)
+
+    msg = MIMEMultipart()
+    msg['From'] = 'ai@bizarte.com.br'
+    msg['To'] = tarefa.usuario.email
+    msg['Subject'] = titulo
+    msg.attach(MIMEText(corpo, 'plain'))
+
+    raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    message = service.users().messages().send(userId='me', body={'raw': raw_message}).execute()
+
+    return redirect(url_for('listar_tarefas_semanais_usuario'))
+
+
+def get_body(msg):
+    if 'parts' in msg['payload']:
+        part_data = ''.join(part['body']['data'] for part in msg['payload']['parts'])
+    else:
+        part_data = msg['payload']['body']['data']
+
+    # Os dados do e-mail estão em base64, então precisamos decodificar
+    part_data = part_data.replace("-", "+").replace("_", "/")  # Correção para URL-Safe base64
+    decoded_bytes = base64.urlsafe_b64decode(part_data)
+    decoded_str = str(decoded_bytes, 'utf-8')
+
+    # Dividir o corpo do e-mail na primeira ocorrência de uma linha que começa com '>'
+    reply, _, _ = decoded_str.partition("\n>")
+
+    # Remover qualquer HTML restante
+    reply = re.sub('<[^<]+?>', '', reply)
+
+    return reply.strip()
+
+
+
+
+def ler_emails_respondidos():
+    def format_body(body):
+        # Remover caracteres de controle
+        body = re.sub(r'\r\n', ' ', body)
+
+        # Extrair a data da resposta
+        match = re.search(r'Em seg\., (\d+ de \w+ de \d+)', body)
+        if match:
+            date = match.group(1)
+            body = body.replace(f'Em seg., {date} escreveu:', f'. Em seg., {date}')
+
+        return body
+
+    with app.app_context():
+        try:
+            # Limpar a coluna 'observacoes' de todas as tarefas
+            for tarefa in TarefaSemanal.query.all():
+                tarefa.observacoes = "{}"  # Limpar com string JSON vazia
+            db.session.commit()
+
+            # Listar os e-mails na caixa de entrada
+            results = service.users().messages().list(userId='me', labelIds=['INBOX']).execute()
+            messages = results.get('messages', [])
+
+            print(f'Encontrados {len(messages)} e-mails na caixa de entrada.')
+
+            for message in messages:
+                msg = service.users().messages().get(userId='me', id=message['id'], format='full').execute()
+
+                # Obter o campo 'subject' da mensagem
+                subject = ''
+                for header in msg['payload']['headers']:
+                    if header['name'] == 'Subject':
+                        subject = header['value']
+
+                # Verificar se o e-mail é uma resposta a uma tarefa
+                if 'Novo Sprint Semanal: Tarefa' in subject:
+                    print(f'Processando e-mail com assunto: {subject}')
+
+                    # Extrair o ID da tarefa do assunto do e-mail
+                    tarefa_id = int(subject.split(' ')[-1])
+
+                    # Encontrar a tarefa correspondente no banco de dados
+                    tarefa = TarefaSemanal.query.get(tarefa_id)
+
+                    if tarefa:
+                        print(f'Encontrada tarefa com ID: {tarefa_id}')
+                        body = get_body(msg)
+                        body = format_body(body)  # Format the body of the email
+                        # Load 'observacoes' if it exists, otherwise create a new dictionary
+                        observacoes = json.loads(tarefa.observacoes) if tarefa.observacoes else {}
+
+                        # Add new observation to the dictionary
+                        unique_key = f"{datetime.utcnow().isoformat()}_{message['id']}"  # Usar datetime + message_id como chave única
+                        observacoes[unique_key] = json.dumps(body)  # Certificar-se de que o body é uma string JSON
+
+                        tarefa.observacoes = json.dumps(observacoes)
+                        db.session.commit()
+                        print('Resposta do e-mail adicionada às observações da tarefa.')
+                        print(f'Observações atualizadas para a tarefa {tarefa_id}: {tarefa.observacoes}')
+
+                    else:
+                        print(f'Não foi encontrada tarefa com ID: {tarefa_id}')
+
+        except HttpError as error:
+            print(f'Um erro ocorreu: {error}')
+
+
+
+def job():
+    ler_emails_respondidos()
+
+schedule.every(5).minutes.do(job)
+
+def run_schedule():
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
+# Cria e inicia uma nova thread que executará a função run_schedule
+thread = threading.Thread(target=run_schedule)
+thread.start()
 
 @app.cli.command("create-db")
 def create_db():
@@ -1402,60 +1569,74 @@ def listar_tarefas_semanais_usuario():
     for tarefa in tarefas_semanais:
         tarefa_dict = tarefa.__dict__
         tarefa_dict['to_do_decoded'] = tarefa.to_do_decoded
+        tarefa_dict['observacoes_decoded'] = json.loads(tarefa.observacoes)  # Adicionado aqui
         tarefa_dict['usuario'] = tarefa.usuario.nome
         tarefas_decodificadas.append(tarefa_dict)
     return render_template('listar_tarefas_semanais_usuario.html', tarefas_semanais=tarefas_decodificadas)
+
 
 
 @app.route('/atualizar_tarefa_semanal/<int:id>', methods=['GET', 'POST'])
 @login_required
 def atualizar_tarefa_semanal(id):
     tarefa = TarefaSemanal.query.get_or_404(id)
+    db.session.refresh(tarefa)
 
     if request.method == 'POST':
         tarefa.tarefa_semana = request.form['tarefa_semana']
         tarefa.data_para_conclusao = datetime.strptime(request.form['data_para_conclusao'], '%Y-%m-%d')
+
         to_do = {
-            'passos': [request.form.get(f'passo{i}') for i in range(1, 7) if request.form.get(f'passo{i}')],
-            'datas': [request.form.get(f'data{i}') for i in range(1, 7) if request.form.get(f'data{i}')],
-            'status': [request.form.get(f'status{i}') for i in range(1, 7) if request.form.get(f'status{i}')]
+            'passos': [],
+            'datas': [],
+            'status': []
         }
+
+        for key in request.form.keys():
+            if key.startswith('passo'):
+                to_do['passos'].append(request.form[key])
+            elif key.startswith('data'):
+                to_do['datas'].append(request.form[key])
+            elif key.startswith('status') and not key == 'status_tarefa':
+                to_do['status'].append(request.form[key])
+
         tarefa.to_do = json.dumps(to_do)
         tarefa.data_atualizacao = datetime.utcnow()
 
-        # Load and decode 'observacoes' if it exists, otherwise create a new dictionary
-        observacoes = json.loads(tarefa.observacoes) if tarefa.observacoes else {}
+        observacoes = tarefa.observacoes_decoded() if tarefa.observacoes else {}
 
-        # Update 'status_tarefa' and 'observacao_tarefa' in 'observacoes'
         observacoes['status_tarefa'] = request.form['status_tarefa']
-        observacoes['observacao_tarefa'] = request.form['observacao_tarefa']
+        if 'observacao_tarefa' in request.form:
+            observacoes['observacao_tarefa'] = request.form['observacao_tarefa']
 
         tarefa.observacoes = json.dumps(observacoes)
 
         db.session.commit()
+
         return redirect(url_for('listar_tarefas_semanais_usuario'))
 
-    # If 'status' key does not exist in the 'to_do' dictionary, add it with the value 'criado' for each step
-    if 'status' not in tarefa.to_do_decoded:
-        print("Adding status to to_do_decoded")  # print a message to check if this code is being executed
-        new_to_do = tarefa.to_do_decoded.copy()  # create a new dictionary and copy all data from to_do_decoded
-        new_to_do['status'] = ['criado' for _ in
-                               range(len(tarefa.to_do_decoded['passos']))]  # add status to the new dictionary
-        print(new_to_do)  # print the new dictionary to check if status was added
-        tarefa.to_do = json.dumps(new_to_do)  # save the new dictionary to the database
+    tarefa_dict = tarefa.__dict__.copy()
+    tarefa_dict['to_do_decoded'] = tarefa.to_do_decoded
+    tarefa_dict['observacoes_decoded'] = tarefa.observacoes_decoded()
+
+    if 'status' not in tarefa_dict['to_do_decoded']:
+        new_to_do = tarefa_dict['to_do_decoded'].copy()
+        new_to_do['status'] = ['criado' for _ in range(len(tarefa_dict['to_do_decoded']['passos']))]
+        tarefa.to_do = json.dumps(new_to_do)
         db.session.commit()
 
-    # Load and decode 'observacoes' if it exists, otherwise create a new dictionary
-    observacoes = json.loads(tarefa.observacoes) if tarefa.observacoes else {}
+    observacoes = tarefa_dict['observacoes_decoded'] if tarefa.observacoes else {}
 
-    # If 'status_tarefa' and 'observacao_tarefa' are not in 'observacoes'
     if not ('status_tarefa' in observacoes and 'observacao_tarefa' in observacoes):
         observacoes['status_tarefa'] = 'pendente'
         observacoes['observacao_tarefa'] = ''
         tarefa.observacoes = json.dumps(observacoes)
         db.session.commit()
 
-    return render_template('atualizar_tarefa_semanal.html', tarefa=tarefa)
+    return render_template('atualizar_tarefa_semanal.html', tarefa=tarefa_dict, observacoes=observacoes)
+
+
+
 
 
 @app.route('/deletar_todo/<int:id>/<int:todo_index>', methods=['POST'])
@@ -1464,16 +1645,22 @@ def deletar_todo(id, todo_index):
     tarefa = TarefaSemanal.query.get_or_404(id)
     to_do_decoded = tarefa.to_do_decoded
 
-    # Remove the to-do at the given index from each list in the to_do_decoded dictionary
-    for key in to_do_decoded:
-        del to_do_decoded[key][todo_index]
+    # Check if the todo_index is valid
+    if todo_index < 0 or todo_index >= len(to_do_decoded['passos']):
+        return "Invalid todo index", 400
 
-    # Save the updated to_do_decoded back to the database
+    # Remove the corresponding step, date and status
+    del to_do_decoded['passos'][todo_index]
+    del to_do_decoded['datas'][todo_index]
+    del to_do_decoded['status'][todo_index]
+
+
+    # Save the updated to_do to the task
     tarefa.to_do = json.dumps(to_do_decoded)
+
     db.session.commit()
 
     return redirect(url_for('atualizar_tarefa_semanal', id=id))
-
 
 
 
@@ -1667,6 +1854,26 @@ def revisao_sprint_semana():
 def listar_revisao_sprint_semana(empresa_id):
     sprints = Sprint.query.filter_by(empresa_id=empresa_id).all()
     return render_template('listar_revisao_sprint_semana.html', sprints=sprints)
+
+
+@app.route('/montagem_email_tarefas', methods=['GET', 'POST'])
+def montagem_email_tarefas():
+    empresas = Empresa.query.all()
+    return render_template('montagem_email_tarefas.html', empresas=empresas)
+
+@app.route('/listar_email_tarefas', methods=['GET', 'POST'])
+def listar_email_tarefas():
+    empresa_id = request.form.get('empresa')
+    tarefas = TarefaSemanal.query.filter_by(empresa_id=empresa_id).all()
+
+    # Agrupar tarefas por usuário
+    tarefas_por_usuario = {}
+    for tarefa in tarefas:
+        if tarefa.usuario_id not in tarefas_por_usuario:
+            tarefas_por_usuario[tarefa.usuario_id] = []
+        tarefas_por_usuario[tarefa.usuario_id].append(tarefa)
+
+    return render_template('listar_email_tarefas.html', tarefas_por_usuario=tarefas_por_usuario)
 
 
 

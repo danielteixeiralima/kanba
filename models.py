@@ -3,7 +3,8 @@ from datetime import datetime
 from flask import json
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
-
+from base64 import b64decode
+from base64 import b64decode, b64encode
 
 db = SQLAlchemy()
 
@@ -18,7 +19,7 @@ class Empresa(db.Model):
     descricao_empresa = db.Column(db.Text)
     objetivos_principais = db.Column(db.Text)
     historico_interacoes = db.Column(db.Text)
-
+    vincular_instagram = db.Column(db.String(200))
 
 
 
@@ -44,6 +45,12 @@ class Usuario(db.Model, UserMixin):
     data_entrada = db.Column(db.DateTime, default=datetime.utcnow)
     cargo = db.Column(db.String(80), nullable=False)
     status = db.Column(db.String(20), nullable=False)
+    sprint = db.Column(db.String(200))  # Novo campo
+    dayling_1 = db.Column(db.String(200))  # Novo campo
+    dayling_2 = db.Column(db.String(200))  # Novo campo
+    dayling_3 = db.Column(db.String(200))  # Novo campo
+    dayling_4 = db.Column(db.String(200))  # Novo campo
+    dayling_5 = db.Column(db.String(200))  # Novo campo
     sprint = db.Column(db.String(200))
     dayling_1 = db.Column(db.String(200))
     dayling_2 = db.Column(db.String(200))
@@ -52,7 +59,13 @@ class Usuario(db.Model, UserMixin):
     dayling_5 = db.Column(db.String(200))
     password_hash = db.Column(db.String(128))
     is_admin = db.Column(db.Boolean, default=False)
-
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nome': self.nome,
+            'sobrenome': self.sobrenome,
+            'email': self.email,
+        }
     @property
     def password(self):
         raise AttributeError('password: campo de leitura apenas')
@@ -112,6 +125,15 @@ class Sprint(db.Model):
     data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+
+def is_base64(s):
+    try:
+        return base64.b64encode(base64.b64decode(s)) == s
+    except Exception:
+        return False
+
+
+
 class TarefaSemanal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
@@ -130,7 +152,69 @@ class TarefaSemanal(db.Model):
         return json.loads(self.to_do)
 
     def observacoes_decoded(self):
-        return json.loads(self.observacoes)
+        decoded_dict = {}
+        if self.observacoes is not None:
+            observacoes = json.loads(self.observacoes)
+            for key, value in observacoes.items():
+                # verify if the length of value is a multiple of 4, if not add the necessary '='
+                if len(value) % 4 != 0:
+                    value += '=' * (4 - len(value) % 4)
+                # Check if value is base64 encoded
+                if is_base64(value):
+                    # decode the base64 value to string
+                    decoded_dict[key] = b64decode(value).decode('utf-8')
+                else:
+                    decoded_dict[key] = value
+                print(f"{key}: {decoded_dict[key]}")  # print key-value pair
+        else:
+            print("No observations for this task.")  # print message if observations is None
+        return decoded_dict
+
+
+class PostsInstagram(db.Model):
+    id = db.Column(db.String, primary_key=True)
+    id_empresa = db.Column(db.String(64), index=True)
+    timestamp = db.Column(db.String(64))
+    caption = db.Column(db.String(2000))
+    like_count = db.Column(db.Integer)
+    comments_count = db.Column(db.Integer)
+    reach = db.Column(db.Integer)
+    percentage = db.Column(db.Float)
+    media_product_type = db.Column(db.String(64))
+    plays = db.Column(db.Integer)
+    saved = db.Column(db.Integer)
+    nome_empresa = db.Column(db.String(64))
+
+    def to_dict(self):
+        return {
+            'id': self.id,  # incluir o id no dicionário
+            'id_empresa': self.id_empresa,
+            'timestamp': self.timestamp,
+            'caption': self.caption,
+            'like_count': self.like_count,
+            'comments_count': self.comments_count,
+            'reach': self.reach,
+            'percentage': self.percentage,
+            'media_product_type': self.media_product_type,
+            'plays': self.plays,
+            'saved': self.saved,
+            'nome_empresa': self.nome_empresa,
+        }
+
+
+class AnaliseInstagram(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    data_criacao = db.Column(db.String(64))
+    analise = db.Column(db.Text)
+    nome_empresa = db.Column(db.String(64))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'data_criacao': self.data_criacao,
+            'analise': self.analise,
+            'nome_empresa': self.nome_empresa,
+        }
 
 
 

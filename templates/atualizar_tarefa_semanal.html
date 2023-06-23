@@ -16,18 +16,26 @@
                 </div>
 
                 <h3 class="text-dark">Status da Tarefa:</h3>
-                <div class="form-group">
-                    <label for="status_tarefa" class="text-dark">Status da Tarefa:</label>
-                    <select id="status_tarefa" name="status_tarefa" class="form-control text-dark" required>
-                        <option value="pendente" {% if tarefa.observacoes_decoded().get('status_tarefa') == 'pendente' %}selected{% endif %}>Pendente</option>
-                        <option value="em progresso" {% if tarefa.observacoes_decoded().get('status_tarefa') == 'em progresso' %}selected{% endif %}>Em progresso</option>
-                        <option value="concluído" {% if tarefa.observacoes_decoded().get('status_tarefa') == 'concluído' %}selected{% endif %}>Concluído</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="observacao_tarefa" class="text-dark">Observações da Tarefa:</label>
-                    <textarea id="observacao_tarefa" name="observacao_tarefa" class="form-control text-dark" rows="3" required>{{ tarefa.observacoes_decoded().get('observacao_tarefa') }}</textarea>
-                </div>
+                    <div class="form-group">
+                        <label for="status_tarefa" class="text-dark">Status da Tarefa:</label>
+                        <select id="status_tarefa" name="status_tarefa" class="form-control text-dark" required>
+                            <option value="pendente" {% if 'status_tarefa' in tarefa.observacoes_decoded and tarefa.observacoes_decoded.get('status_tarefa').lower() == 'pendente' %}selected{% endif %}>Pendente</option>
+                            <option value="em progresso" {% if 'status_tarefa' in tarefa.observacoes_decoded and tarefa.observacoes_decoded.get('status_tarefa').lower() == 'em progresso' %}selected{% endif %}>Em progresso</option>
+                            <option value="concluído" {% if 'status_tarefa' in tarefa.observacoes_decoded and tarefa.observacoes_decoded.get('status_tarefa').lower() == 'concluído' %}selected{% endif %}>Concluído</option>
+
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="observacoes" class="text-dark">Observações do Email:</label>
+                        <textarea id="observacoes" name="observacoes" class="form-control text-dark" rows="3" readonly>
+                            {% for key, value in observacoes.items() %}
+                                {% if key not in ['status_tarefa', 'observacao_tarefa'] %}
+                                    {{ value }}
+                                {% endif %}
+                            {% endfor %}
+                        </textarea>
+                    </div>
 
                 <h3 class="text-dark">Passos:</h3>
                 <table class="table table-striped table-bordered">
@@ -46,6 +54,7 @@
                                     <td>
                                         <input type="text" id="passo{{i+1}}" name="passo{{i+1}}" class="form-control text-dark" value="{{ tarefa.to_do_decoded['passos'][i] }}" required>
                                     </td>
+
                                     <td>
                                         <input type="date" id="data{{i+1}}" name="data{{i+1}}" class="form-control text-dark" value="{{ tarefa.to_do_decoded['datas'][i] }}" required>
                                     </td>
@@ -64,6 +73,24 @@
                                 </tr>
                             {% endfor %}
                         {% endif %}
+                        <tr id="newStepRow">
+                            <td>
+                                <input type="text" id="newStep" name="newStep" class="form-control text-dark" placeholder="Digite o novo passo aqui">
+                            </td>
+                            <td>
+                                <input type="date" id="newDate" name="newDate" class="form-control text-dark">
+                            </td>
+                            <td>
+                                <select id="newStatus" name="newStatus" class="form-control text-dark">
+                                    <option value="pendente">Pendente</option>
+                                    <option value="em progresso">Em progresso</option>
+                                    <option value="concluído">Concluído</option>
+                                </select>
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-success btn-sm" onclick="addStep()">Adicionar</button>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
                 <button type="submit" class="btn btn-primary btn-block">Atualizar</button>
@@ -71,4 +98,40 @@
         </div>
     </div>
 </div>
+
+<script>
+    var stepCounter = {{ len(tarefa.to_do_decoded['passos']) + 1 }};
+    function addStep() {
+        var newStep = document.getElementById('newStep').value;
+        var newDate = document.getElementById('newDate').value;
+        var newStatus = document.getElementById('newStatus').value;
+        if (newStep && newDate) {
+            var table = document.querySelector('tbody');
+            var row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <input type="text" id="passo${stepCounter}" name="passo${stepCounter}" class="form-control text-dark" value="${newStep}" required>
+                </td>
+                <td>
+                    <input type="date" id="data${stepCounter}" name="data${stepCounter}" class="form-control text-dark" value="${newDate}" required>
+                </td>
+                <td>
+                    <select id="status${stepCounter}" name="status${stepCounter}" class="form-control text-dark">
+                        <option value="pendente" ${newStatus == 'pendente' ? 'selected' : ''}>Pendente</option>
+                        <option value="em progresso" ${newStatus == 'em progresso' ? 'selected' : ''}>Em progresso</option>
+                        <option value="concluído" ${newStatus == 'concluído' ? 'selected' : ''}>Concluído</option>
+                    </select>
+                </td>
+                <td></td>
+            `;
+            table.insertBefore(row, document.getElementById('newStepRow'));
+            document.getElementById('newStep').value = '';
+            document.getElementById('newDate').value = '';
+            document.getElementById('newStatus').value = 'pendente';
+            stepCounter++;
+        }
+    }
+</script>
+
 {% endblock %}
+
