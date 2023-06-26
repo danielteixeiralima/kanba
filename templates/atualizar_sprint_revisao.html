@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1>Atualizar Sprint</h1>
+    <form method="POST">
+        <label for="prioridade">Prioridade:</label>
+        <input type="number" id="prioridade" name="prioridade" value="{{ sprint.prioridade }}" required>
+        <label for="tarefa">Tarefa:</label>
+        <textarea id="tarefa" name="tarefa" required>{{ sprint.tarefa }}</textarea>
+        <label for="status">Status:</label>
+        <select id="status" name="status" required>
+            <option value="pendente" {% if sprint.dado_1_sprint['status'] == 'pendente' %}selected{% endif %}>Pendente</option>
+            <option value="em processo" {% if sprint.dado_1_sprint['status'] == 'em processo' %}selected{% endif %}>Em Processo</option>
+            <option value="concluido" {% if sprint.dado_1_sprint['status'] == 'concluido' %}selected{% endif %}>Concluído</option>
+        </select>
+        <input type="submit" value="Atualizar Sprint">
+    </form>
+{% endblock %}

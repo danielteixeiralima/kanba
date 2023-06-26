@@ -172,7 +172,7 @@ def get_body(msg):
     return reply.strip()
 
 
-
+"""
 
 def ler_emails_respondidos():
     def format_body(body):
@@ -198,7 +198,6 @@ def ler_emails_respondidos():
             results = service.users().messages().list(userId='me', labelIds=['INBOX']).execute()
             messages = results.get('messages', [])
 
-            print(f'Encontrados {len(messages)} e-mails na caixa de entrada.')
 
             for message in messages:
                 msg = service.users().messages().get(userId='me', id=message['id'], format='full').execute()
@@ -211,7 +210,7 @@ def ler_emails_respondidos():
 
                 # Verificar se o e-mail é uma resposta a uma tarefa
                 if 'Novo Sprint Semanal: Tarefa' in subject:
-                    print(f'Processando e-mail com assunto: {subject}')
+
 
                     # Extrair o ID da tarefa do assunto do e-mail
                     tarefa_id = int(subject.split(' ')[-1])
@@ -220,7 +219,7 @@ def ler_emails_respondidos():
                     tarefa = TarefaSemanal.query.get(tarefa_id)
 
                     if tarefa:
-                        print(f'Encontrada tarefa com ID: {tarefa_id}')
+
                         body = get_body(msg)
                         body = format_body(body)  # Format the body of the email
                         # Load 'observacoes' if it exists, otherwise create a new dictionary
@@ -232,8 +231,7 @@ def ler_emails_respondidos():
 
                         tarefa.observacoes = json.dumps(observacoes)
                         db.session.commit()
-                        print('Resposta do e-mail adicionada às observações da tarefa.')
-                        print(f'Observações atualizadas para a tarefa {tarefa_id}: {tarefa.observacoes}')
+
 
                     else:
                         print(f'Não foi encontrada tarefa com ID: {tarefa_id}')
@@ -256,6 +254,8 @@ def run_schedule():
 # Cria e inicia uma nova thread que executará a função run_schedule
 thread = threading.Thread(target=run_schedule)
 thread.start()
+
+"""
 
 @app.cli.command("create-db")
 def create_db():
@@ -1974,6 +1974,26 @@ def listar_email_tarefas():
         tarefas_por_usuario[tarefa.usuario_id].append(tarefa)
 
     return render_template('listar_email_tarefas.html', tarefas_por_usuario=tarefas_por_usuario)
+
+
+@app.route('/atualizar_sprint_revisao/<int:sprint_id>', methods=['GET', 'POST'])
+def atualizar_sprint_revisao(sprint_id):
+    sprint = Sprint.query.get(sprint_id)
+    if sprint is None:
+        abort(404)
+
+    if request.method == 'POST':
+        sprint.prioridade = request.form.get('prioridade')
+        sprint.tarefa = request.form.get('tarefa')
+        if sprint.dado_1_sprint is None:
+            sprint.dado_1_sprint = {}
+        sprint.dado_1_sprint['status'] = request.form.get('status')
+        db.session.commit()
+        return redirect(url_for('listar_revisao_sprint_semana', empresa_id=sprint.empresa_id))
+
+    return render_template('atualizar_sprint_revisao.html', sprint=sprint)
+
+
 
 
 

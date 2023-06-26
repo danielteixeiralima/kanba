@@ -12,6 +12,7 @@
                 <th>Usuário</th>
                 <th>Grupo de Usuários</th>
                 <th>Data de Criação</th>
+                <th>Status do Sprint</th>
                 <th>Ações</th>
             </tr>
         </thead>
@@ -25,8 +26,9 @@
                 <td>{{ sprint.usuario.nome if sprint.usuario else 'N/A' }}</td>
                 <td>{{ sprint.usuario_grupo }}</td>
                 <td>{{ sprint.data_criacao }}</td>
+                <td>{{ sprint.dado_1_sprint['status'] }}</td>
                 <td>
-                    <a href="{{ url_for('atualizar_sprint', id=sprint.id) }}" class="btn btn-primary">Atualizar</a>
+                    <a href="{{ url_for('atualizar_sprint_revisao', sprint_id=sprint.id) }}" class="btn btn-primary">Atualizar</a>
                     <a href="{{ url_for('deletar_sprint', id=sprint.id) }}" class="btn btn-danger">Deletar</a>
                 </td>
             </tr>
