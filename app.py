@@ -2003,11 +2003,18 @@ def atualizar_sprint_revisao(sprint_id):
         sprint.tarefa = request.form.get('tarefa')
         if sprint.dado_1_sprint is None:
             sprint.dado_1_sprint = {}
-        sprint.dado_1_sprint['status'] = request.form.get('status')
+        # Cria uma nova cópia do dicionário
+        novo_dado_1_sprint = sprint.dado_1_sprint.copy()
+        novo_dado_1_sprint['status'] = request.form.get('status')
+        novo_dado_1_sprint['observacoes'] = request.form.get('observacoes')
+        novo_dado_1_sprint['data_conclusao'] = request.form.get('data_conclusao')
+        # Atribui a nova cópia de volta ao campo JSON
+        sprint.dado_1_sprint = novo_dado_1_sprint
         db.session.commit()
         return redirect(url_for('listar_revisao_sprint_semana', empresa_id=sprint.empresa_id))
 
     return render_template('atualizar_sprint_revisao.html', sprint=sprint)
+
 
 
 @app.route('/montagem_sprint_semana_rotina', methods=['GET', 'POST'])
