@@ -123,7 +123,7 @@ class Sprint(db.Model):
     usuario = db.relationship('Usuario', backref='sprints')
     usuario_grupo = db.Column(db.String(120), nullable=True)
     data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
-    dado_1_sprint = db.Column(db.JSON, default={"status": "pendente"})
+    dado_1_sprint = db.Column(db.JSON, default={"status": "pendente", "data_conclusao": None, "observacoes": ""})
 
 
 

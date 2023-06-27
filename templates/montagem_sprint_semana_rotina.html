@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1>Montagem do Sprint da Semana - Rotina</h1>
+    <h2>Informações da Empresa</h2>
+    <p>Nome da Empresa: {{ empresa.nome }}</p>
+    <p>Descrição da Empresa: {{ empresa.descricao }}</p>
+    {% if sprint_anterior %}
+        <h2>Sprint da Semana Anterior</h2>
+        <p>Data de Criação: {{ sprint_anterior.data_criacao }}</p>
+        <p>Data de Conclusão: {{ sprint_anterior.dado_1_sprint['data_conclusao'] }}</p>
+        <p>Status: {{ sprint_anterior.dado_1_sprint['status'] }}</p>
+        <p>Usuário: {{ sprint_anterior.usuario.nome if sprint_anterior.usuario else 'N/A' }}</p>
+        <p>Observações: {{ sprint_anterior.dado_1_sprint['observacoes'] }}</p>
+    {% else %}
+        <p>Não há sprints da semana anterior.</p>
+    {% endif %}
+{% endblock %}

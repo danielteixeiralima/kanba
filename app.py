@@ -22,6 +22,7 @@ import schedule
 import time
 import re
 from flask_login import current_user
+from datetime import datetime, timedelta
 
 
 load_dotenv()  # Carrega as variáveis de ambiente do arquivo .env
@@ -1933,12 +1934,23 @@ def mural(empresa_id):
         flash('Empresa não encontrada.', 'error')
         return redirect(url_for('index'))
 
+    # Buscar todos os OKRs para a empresa
     objetivos = OKR.query.filter_by(id_empresa=empresa_id).all()
-    krs = KR.query.filter_by(id_empresa=empresa_id).all()
-    macro_acoes = MacroAcao.query.filter_by(empresa_id=empresa_id).all()
+
+    # Para cada OKR, buscar os KRs e MacroAções relacionados
+    for objetivo in objetivos:
+        objetivo.krs = KR.query.filter_by(id_okr=objetivo.id).all()
+        for kr in objetivo.krs:
+            kr.macro_acoes = MacroAcao.query.filter_by(kr_id=kr.id).all()
+
     tarefas = TarefaSemanal.query.filter_by(empresa_id=empresa_id).all()
 
-    return render_template('mural.html', empresa=empresa, objetivos=objetivos, krs=krs, macro_acoes=macro_acoes, tarefas=tarefas)
+    # Buscar todos os Sprints para a empresa
+    sprints = Sprint.query.filter_by(empresa_id=empresa_id).all()
+
+    # Passar os OKRs (com KRs e MacroAções aninhados), Tarefas e Sprints para o template
+    return render_template('mural.html', empresa=empresa, objetivos=objetivos, tarefas=tarefas, sprints=sprints)
+
 
 
 @app.route('/revisao_sprint_semana', methods=['GET', 'POST'])
@@ -1952,8 +1964,12 @@ def revisao_sprint_semana():
 
 @app.route('/listar_revisao_sprint_semana/<int:empresa_id>', methods=['GET'])
 def listar_revisao_sprint_semana(empresa_id):
-    sprints = Sprint.query.filter_by(empresa_id=empresa_id).all()
+    if current_user.is_admin:
+        sprints = Sprint.query.filter_by(empresa_id=empresa_id).all()
+    else:
+        sprints = Sprint.query.filter_by(empresa_id=empresa_id, usuario_id=current_user.id).all()
     return render_template('listar_revisao_sprint_semana.html', sprints=sprints)
+
 
 
 @app.route('/montagem_email_tarefas', methods=['GET', 'POST'])
@@ -1979,7 +1995,7 @@ def listar_email_tarefas():
 @app.route('/atualizar_sprint_revisao/<int:sprint_id>', methods=['GET', 'POST'])
 def atualizar_sprint_revisao(sprint_id):
     sprint = Sprint.query.get(sprint_id)
-    if sprint is None:
+    if sprint is None or (not current_user.is_admin and sprint.usuario_id != current_user.id):
         abort(404)
 
     if request.method == 'POST':
@@ -1994,6 +2010,80 @@ def atualizar_sprint_revisao(sprint_id):
     return render_template('atualizar_sprint_revisao.html', sprint=sprint)
 
 
+@app.route('/montagem_sprint_semana_rotina', methods=['GET', 'POST'])
+@login_required
+def montagem_sprint_semana_rotina():
+    # Buscar o sprint da semana anterior
+    uma_semana_atras = datetime.now() - timedelta(weeks=1)
+    sprint_anterior = Sprint.query.filter(Sprint.data_criacao >= uma_semana_atras).order_by(Sprint.data_criacao.desc()).first()
+
+    # Buscar a empresa
+    empresa = None
+    if sprint_anterior:
+        empresa = Empresa.query.get(sprint_anterior.empresa_id)
+
+
+    if request.method == 'POST':
+        # Coletar informações da empresa
+        empresa_id = request.form.get('empresa')
+        empresa = db.session.get(Empresa, empresa_id)  # Obter a empresa pelo ID
+        if empresa is None:
+            return redirect(url_for('montagem_sprint_semana_rotina'))  # Se a empresa não existir, redirecionar
+
+        # Obter as macro ações associadas à empresa
+        macro_acoes = MacroAcao.query.filter_by(empresa_id=empresa.id).all()
+
+        # Obter os OKRs e usuários associados à empresa
+        okrs = OKR.query.filter_by(id_empresa=empresa.id).all()
+        usuarios = Usuario.query.filter_by(id_empresa=empresa.id).all()
+
+        # Formatar as listas como strings
+        macro_acoes_str = ', '.join([acao.texto for acao in macro_acoes])
+        okrs_str = ', '.join([okr.objetivo for okr in okrs])
+        usuarios_str = ', '.join([f'{usuario.nome} ({usuario.cargo})' for usuario in usuarios])
+
+        # Informações sobre o sprint da semana anterior
+        sprint_anterior_str = ''
+        if sprint_anterior:
+            sprint_anterior_str = f", Levando em consideração o sprint da semana anterior com status {sprint_anterior.dado_1_sprint['status']}, data de criação {sprint_anterior.data_criacao}, data de conclusão {sprint_anterior.dado_1_sprint['data_conclusao']}, observações {sprint_anterior.dado_1_sprint['observacoes']} e usuário {sprint_anterior.usuario.nome if sprint_anterior.usuario else 'N/A'}"
+
+        # Construir a pergunta para o GPT-4
+        pergunta = f"Inteligência Artificial GPT, considerando a lista de macro ações estratégicas geradas a partir dos OKRs {okrs_str} da empresa para os próximos 90 dias, e as habilidades específicas dos colaboradores da equipe {usuarios_str}, peço que você desenvolva um plano de sprint mensurável e orientado a resultados para a próxima semana.{sprint_anterior_str} Para moldar este plano, aqui estão as informações que você precisa considerar: Lista de macro ações: {macro_acoes_str}, Habilidades dos colaboradores: {usuarios_str}, Resumo sobre a empresa: {empresa.descricao_empresa}. Com base nessas informações, por favor, crie um plano de sprint para a semana atual. Defina as tareas específicas a serem realizadas na próxima semana, priorizando as ações mais críticas. As tarefas devem ser descritas usando verbos orientados a ação e resultados, como 'aprovar', 'entregar', 'fechar' ou 'alcançar X'. Detalhe como essas tarefas suportam os OKRs definidos e designe o responsável por cada tarefa, de acordo com a tarefa e o cargo dos colaboradores. No final do plano, inclua uma pergunta reflexiva para cada membro da equipe que os estimule a pensar sobre como eles podem melhorar seus resultados de maneira inovadora. Provide them in JSON format with the following keys: prioridade, tarefa, responsável."
+        print(pergunta)
+        messages = [{"role": "system", "content": "You are a helpful assistant."}]
+        resposta, messages = perguntar_gpt(pergunta, empresa_id, messages)
+
+        # Encontra o início e o final do objeto JSON na resposta
+        inicio_json = resposta.find('[')
+        final_json = resposta.rfind(']')
+
+        # Se não encontramos um objeto JSON, lançamos um erro
+        if inicio_json == -1 or final_json == -1:
+            print(f"Erro ao decodificar JSON: não foi possível encontrar um objeto JSON na resposta")
+            print(f"Resposta: {resposta}")
+            return redirect(url_for('montagem_sprint_semana_rotina'))  # Se a decodificação falhar, redirecionar
+
+        json_str = resposta[inicio_json:final_json+1]
+
+        # Carrega a resposta JSON
+        try:
+            sprints = json.loads(json_str)
+        except json.JSONDecodeError as e:
+            print(f"Erro ao decodificar JSON: {str(e)}")
+            print(f"Resposta:{resposta}")
+
+            return redirect(url_for('montagem_sprint_semana_rotina'))  # Se a decodificação falhar, redirecionar
+
+        # Armazena a resposta, os sprints e o id da empresa na sessão
+        session['resposta'] = resposta
+        session['sprints'] = sprints
+        session['empresa_id'] = empresa_id
+
+        # Redireciona para a página de revisão
+        return redirect(url_for('revisar_sprint'))
+
+    # Renderiza o template de criação de sprint
+    return render_template('montagem_sprint_semana_rotina.html', sprint_anterior=sprint_anterior, empresa=empresa)
 
 
 

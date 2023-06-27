@@ -1,17 +1,33 @@
 {% extends "base.html" %}
 {% block content %}
-    <h1>Atualizar Sprint</h1>
-    <form method="POST">
-        <label for="prioridade">Prioridade:</label>
-        <input type="number" id="prioridade" name="prioridade" value="{{ sprint.prioridade }}" required>
-        <label for="tarefa">Tarefa:</label>
-        <textarea id="tarefa" name="tarefa" required>{{ sprint.tarefa }}</textarea>
-        <label for="status">Status:</label>
-        <select id="status" name="status" required>
-            <option value="pendente" {% if sprint.dado_1_sprint['status'] == 'pendente' %}selected{% endif %}>Pendente</option>
-            <option value="em processo" {% if sprint.dado_1_sprint['status'] == 'em processo' %}selected{% endif %}>Em Processo</option>
-            <option value="concluido" {% if sprint.dado_1_sprint['status'] == 'concluido' %}selected{% endif %}>Concluído</option>
-        </select>
-        <input type="submit" value="Atualizar Sprint">
-    </form>
+    <div class="container">
+        <h1 class="my-4">Atualizar Sprint</h1>
+        <form method="POST">
+            <div class="mb-3">
+                <label for="prioridade" class="form-label">Prioridade:</label>
+                <input type="number" id="prioridade" name="prioridade" value="{{ sprint.prioridade }}" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label for="tarefa" class="form-label">Tarefa:</label>
+                <textarea id="tarefa" name="tarefa" class="form-control" required>{{ sprint.tarefa }}</textarea>
+            </div>
+            <div class="mb-3">
+                <label for="status" class="form-label">Status:</label>
+                <select id="status" name="status" class="form-select" required>
+                    <option value="pendente" {% if sprint.dado_1_sprint['status'] == 'pendente' %}selected{% endif %}>Pendente</option>
+                    <option value="em processo" {% if sprint.dado_1_sprint['status'] == 'em processo' %}selected{% endif %}>Em Processo</option>
+                    <option value="concluido" {% if sprint.dado_1_sprint['status'] == 'concluido' %}selected{% endif %}>Concluído</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="observacoes" class="form-label">Observações:</label>
+                <textarea id="observacoes" name="observacoes" class="form-control">{{ sprint.dado_1_sprint['observacoes'] }}</textarea>
+            </div>
+            <div class="mb-3">
+                <label for="data_conclusao" class="form-label">Data de Conclusão:</label>
+                <input type="date" id="data_conclusao" name="data_conclusao" value="{{ sprint.dado_1_sprint['data_conclusao'] }}" class="form-control">
+            </div>
+            <button type="submit" class="btn btn-primary">Atualizar Sprint</button>
+        </form>
+    </div>
 {% endblock %}

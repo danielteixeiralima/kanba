@@ -3,6 +3,44 @@
 <head>
     <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
     <style>
+        .sprint-semana {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            width: 300px;
+            height: 300px;
+            border: 1px solid black;
+            border-radius: 50%;
+            padding: 10px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .sprint-semana .postit {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+        }
+        body {
+            overflow: hidden;
+        }
+        #zoomControl {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 100;
+        }
+        body {
+            overflow: hidden;
+        }
+        #zoomControl {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 100;
+        }
         .postit {
             width: 200px;
             height: 200px;
@@ -44,26 +82,27 @@
             margin-bottom: 20px;
         }
     </style>
-    <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
-    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.11/dist/interact.min.js"></script>
 </head>
 <body>
-    <button onclick="window.location.href='/'">Voltar</button>
-    <div class="container" id="postitContainer">
+    <button onclick="window.location.href='/'" aria-label="Voltar para a página inicial">Voltar</button>
+    <div id="zoomControl">
+        <label for="zoom">Zoom:</label>
+        <input type="range" id="zoom" name="zoom" min="0.1" max="2" value="1" step="0.1" aria-label="Controlar o zoom">
+    </div>
+    <div id="outerContainer" role="main" aria-label="Área principal do mural">
         {% for objetivo in objetivos %}
         <div class="objetivo">
             <div class="postit green" ondblclick="editPostit(this)">
                 <h2>Objetivo</h2>
                 <p>{{ objetivo.objetivo }}</p>
             </div>
-            {% for kr in krs %}
+            {% for kr in objetivo.krs %}
             <div class="kr">
                 <div class="postit blue" ondblclick="editPostit(this)">
                     <h2>Key Result</h2>
                     <p>{{ kr.texto }}</p>
                 </div>
-                {% for macro_acao in macro_acoes %}
+                {% for macro_acao in kr.macro_acoes %}
                 <div class="postit orange" ondblclick="editPostit(this)">
                     <h2>Macro Ação</h2>
                     <p>{{ macro_acao.texto }}</p>
@@ -73,9 +112,22 @@
             {% endfor %}
         </div>
         {% endfor %}
+        <hr> <!-- Adicione esta linha -->
+        <div class="sprint-semana">
+            <h2>Sprint da Semana</h2>
+            {% for sprint in sprints %}
+            <div class="postit yellow" ondblclick="editPostit(this)">
+                <h2>{{ sprint.nome_empresa }}</h2>
+                <p>{{ sprint.tarefa }}</p>
+            </div>
+            {% endfor %}
+        </div>
     </div>
-    <button onclick="addPostit()">Adicionar Post-it</button>
+    <button onclick="addPostit()" aria-label="Adicionar um novo post-it">Adicionar Post-it</button>
 
+    <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.11/dist/interact.min.js"></script>
     <script>
         const position = { x: 0, y: 0 }
 
@@ -137,6 +189,130 @@
                 });
             }
         }
+        document.getElementById('zoom').addEventListener('input', function() {
+            document.getElementById('postitContainer').style.transform = 'scale(' + this.value + ')';
+        });
+
+        var outerContainer = document.getElementById('outerContainer');
+
+        interact(outerContainer)
+          .draggable({
+            inertia: true,
+            modifiers: [
+              interact.modifiers.restrict({
+                restriction: 'parent',
+                endOnly: true,
+              }),
+            ],
+            autoScroll: true,
+            listeners: {
+              move: function (event) {
+                var target = event.target;
+                var x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+                var y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+
+                target.style.transform = 'translate(' + x + 'px, ' + y + 'px)';
+
+                target.setAttribute('data-x', x);
+                target.setAttribute('data-y', y);
+              }
+            }
+          });
+
+        document.getElementById('zoom').addEventListener('input', function() {
+            outerContainer.style.transform = 'scale(' + this.value + ')';
+        });
+
+        var outerContainer = document.getElementById('outerContainer');
+        var scale = 1;
+        var x = 0;
+        var y = 0;
+
+        function updateTransform() {
+            outerContainer.style.transform = 'scale(' + scale + ') translate(' + x + 'px, ' + y + 'px)';
+        }
+
+        interact(outerContainer)
+          .draggable({
+            inertia: true,
+            modifiers: [
+              interact.modifiers.restrict({
+                restriction: 'parent',
+                endOnly: true,
+              }),
+            ],
+            autoScroll: true,
+            listeners: {
+              move: function (event) {
+                x += event.dx;
+                y += event.dy;
+                updateTransform();
+              }
+            }
+          });
+
+        document.getElementById('zoom').addEventListener('input', function() {
+            scale = this.value;
+            updateTransform();
+        });
+
+        outerContainer.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            var delta = Math.max(-1, Math.min(1, (e.wheelDelta || -e.detail)));
+            scale += delta * 0.1;
+            updateTransform();
+        }, false);
+
+        var body = document.body;
+        var bodyScale = 1;
+        var bodyX = 0;
+        var bodyY = 0;
+
+        function updateBodyTransform() {
+            body.style.transform = 'scale(' + bodyScale + ') translate(' + bodyX + 'px, ' + bodyY + 'px)';
+        }
+
+        interact(body)
+          .draggable({
+            inertia: true,
+            modifiers: [
+              interact.modifiers.restrict({
+                restriction: 'parent',
+                endOnly: true,
+              }),
+            ],
+            autoScroll: true,
+            listeners: {
+              move: function (event) {
+                bodyX += event.dx;
+                bodyY += event.dy;
+                updateBodyTransform();
+              }
+            }
+          });
+
+        body.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            var delta = Math.max(-1, Math.min(1, (e.wheelDelta || -e.detail)));
+            bodyScale += delta * 0.1;
+            updateBodyTransform();
+        }, false);
+
+        window.onload = function() {
+            var sprints = document.querySelectorAll('.sprint-semana .postit');
+            var container = document.querySelector('.sprint-semana');
+            var radius = container.offsetWidth / 2;
+
+            for (var i = 0; i < sprints.length; i++) {
+                var angle = Math.random() * 2 * Math.PI;
+                var distance = Math.random() * radius;
+                var x = radius + distance * Math.cos(angle);
+                var y = radius + distance * Math.sin(angle);
+                sprints[i].style.left = x + 'px';
+                sprints[i].style.top = y + 'px';
+            }
+        };
+
     </script>
 </body>
 </html>
