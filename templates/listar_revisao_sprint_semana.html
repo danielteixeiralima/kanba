@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
     <h1>Sprints da Empresa</h1>
-    <a href="{{ url_for('deletar_sprint', id=sprint.id, redirect_page='revisao') }}" class="btn btn-danger">Deletar</a>
-    <a href="{{ url_for('montagem_sprint_semana_rotina') }}" class="btn btn-secondary">Montar Sprint da Semana</a> <!-- Novo botão -->
+    <a href="{{ url_for('cadastrar_sprint', redirect_page='revisao') }}" class="btn btn-primary">Incluir Sprint da Semana</a>
+    <input type="text" id="filter-usuario" placeholder="Filtrar por Usuário">
+    <input type="text" id="filter-status" placeholder="Filtrar por Status">
+    <input type="text" id="filter-data-criacao" placeholder="Filtrar por Data de Criação">
     <table class="styled-table">
         <thead>
             <tr>
@@ -17,7 +19,7 @@
                 <th>Ações</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="sprint-table-body">
             {% for sprint in sprints %}
             <tr>
                 <td>{{ sprint.id }}</td>
@@ -26,14 +28,43 @@
                 <td>{{ sprint.tarefa }}</td>
                 <td>{{ sprint.usuario.nome if sprint.usuario else 'N/A' }}</td>
                 <td>{{ sprint.usuario_grupo }}</td>
-                <td>{{ sprint.data_criacao }}</td>
+                <td>{{ sprint.data_criacao.strftime('%d/%m/%Y') }}</td>
                 <td>{{ sprint.dado_1_sprint['status'] }}</td>
                 <td>
                     <a href="{{ url_for('atualizar_sprint_revisao', sprint_id=sprint.id) }}" class="btn btn-primary">Atualizar</a>
-                    <a href="{{ url_for('deletar_sprint', id=sprint.id) }}" class="btn btn-danger">Deletar</a>
+                    <a href="{{ url_for('deletar_sprint', id=sprint.id, redirect_page='revisao') }}" class="btn btn-danger">Deletar</a>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+
+    <script>
+        document.getElementById('filter-usuario').addEventListener('keyup', function() {
+            var value = this.value.toLowerCase();
+            var rows = document.getElementById('sprint-table-body').rows;
+            for (var i = 0; i < rows.length; i++) {
+                var usuario = rows[i].cells[4].innerText.toLowerCase();
+                rows[i].style.display = usuario.indexOf(value) > -1 ? '' : 'none';
+            }
+        });
+
+        document.getElementById('filter-status').addEventListener('keyup', function() {
+            var value = this.value.toLowerCase();
+            var rows = document.getElementById('sprint-table-body').rows;
+            for (var i = 0; i < rows.length; i++) {
+                var status = rows[i].cells[7].innerText.toLowerCase();
+                rows[i].style.display = status.indexOf(value) > -1 ? '' : 'none';
+            }
+        });
+
+        document.getElementById('filter-data-criacao').addEventListener('keyup', function() {
+            var value = this.value.toLowerCase();
+            var rows = document.getElementById('sprint-table-body').rows;
+            for (var i = 0; i < rows.length; i++) {
+                var dataCriacao = rows[i].cells[6].innerText.toLowerCase();
+                rows[i].style.display = dataCriacao.indexOf(value) > -1 ? '' : 'none';
+            }
+        });
+    </script>
 {% endblock %}

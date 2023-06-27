@@ -7,7 +7,7 @@
                 <h1 class="text-center mb-4 text-white">Cadastrar Sprint da Semana</h1>
                 <div class="card" style="background-color: #333;">
                     <div class="card-body">
-                        <form action="{{ url_for('cadastrar_sprint') }}" method="POST">
+                        <form action="{{ url_for('cadastrar_sprint', redirect_page=redirect_page) }}" method="POST">
                             <div class="form-group">
                                 <label for="empresa" style="color: black;">Empresa:</label>
                                 <select class="form-control" id="empresa" name="empresa" required>

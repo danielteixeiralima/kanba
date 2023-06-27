@@ -1355,11 +1355,12 @@ def atualizar_sprint(id):
 @login_required
 def deletar_sprint(id, redirect_page=None):
     sprint = Sprint.query.get(id)
+    empresa_id = sprint.empresa_id  # Armazena o empresa_id antes de excluir o sprint
     db.session.delete(sprint)
     db.session.commit()
 
     if redirect_page == 'revisao':
-        return redirect(url_for('listar_revisao_sprint_semana'))
+        return redirect(url_for('listar_revisao_sprint_semana', empresa_id=empresa_id))
     else:
         return redirect(url_for('listar_sprints_semana'))
 
@@ -1833,7 +1834,7 @@ def cadastrar_sprint(redirect_page=None):
         db.session.commit()
 
         if redirect_page == 'revisao':
-            return redirect(url_for('listar_revisao_sprint_semana'))
+            return redirect(url_for('listar_revisao_sprint_semana', empresa_id=id_empresa))
         else:
             return redirect(url_for('listar_sprints_semana'))
 
@@ -1844,7 +1845,8 @@ def cadastrar_sprint(redirect_page=None):
         empresas = Empresa.query.filter_by(id=current_user.id_empresa).all()
         usuarios = Usuario.query.filter_by(id_empresa=current_user.id_empresa).all()
 
-    return render_template('cadastrar_sprint.html', empresas=empresas, usuarios=usuarios)
+    return render_template('cadastrar_sprint.html', empresas=empresas, usuarios=usuarios, redirect_page=redirect_page)
+
 
 
 
