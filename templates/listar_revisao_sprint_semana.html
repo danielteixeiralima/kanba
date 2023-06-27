@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
     <h1>Sprints da Empresa</h1>
-    <a href="{{ url_for('cadastrar_sprint') }}" class="btn btn-primary">Incluir Sprint da Semana</a>
+    <a href="{{ url_for('deletar_sprint', id=sprint.id, redirect_page='revisao') }}" class="btn btn-danger">Deletar</a>
     <a href="{{ url_for('montagem_sprint_semana_rotina') }}" class="btn btn-secondary">Montar Sprint da Semana</a> <!-- Novo botão -->
     <table class="styled-table">
         <thead>

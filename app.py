@@ -1351,12 +1351,17 @@ def atualizar_sprint(id):
     return render_template('atualizar_sprint.html', sprint=sprint)
 
 @app.route('/deletar_sprint/<int:id>', methods=['GET', 'POST'])
+@app.route('/deletar_sprint/<int:id>/<string:redirect_page>', methods=['GET', 'POST'])
 @login_required
-def deletar_sprint(id):
+def deletar_sprint(id, redirect_page=None):
     sprint = Sprint.query.get(id)
     db.session.delete(sprint)
     db.session.commit()
-    return redirect(url_for('listar_sprints_semana'))
+
+    if redirect_page == 'revisao':
+        return redirect(url_for('listar_revisao_sprint_semana'))
+    else:
+        return redirect(url_for('listar_sprints_semana'))
 
 @app.route('/montagem_lista_usuario_sprint', methods=['GET', 'POST'])
 @login_required
@@ -1800,8 +1805,9 @@ def cadastrar_macro_acao():
 
 
 @app.route('/cadastrar/sprint', methods=['GET', 'POST'])
+@app.route('/cadastrar/sprint/<string:redirect_page>', methods=['GET', 'POST'])
 @login_required
-def cadastrar_sprint():
+def cadastrar_sprint(redirect_page=None):
     if request.method == 'POST':
         id_empresa = int(request.form.get('empresa', '0'))
         id_usuario = int(request.form.get('usuario', '0'))
@@ -1825,7 +1831,11 @@ def cadastrar_sprint():
         )
         db.session.add(sprint)
         db.session.commit()
-        return redirect(url_for('listar_sprints_semana'))
+
+        if redirect_page == 'revisao':
+            return redirect(url_for('listar_revisao_sprint_semana'))
+        else:
+            return redirect(url_for('listar_sprints_semana'))
 
     if current_user.is_admin:
         empresas = Empresa.query.all()
@@ -1835,6 +1845,7 @@ def cadastrar_sprint():
         usuarios = Usuario.query.filter_by(id_empresa=current_user.id_empresa).all()
 
     return render_template('cadastrar_sprint.html', empresas=empresas, usuarios=usuarios)
+
 
 
 @app.route('/get_usuarios/<int:empresa_id>')
