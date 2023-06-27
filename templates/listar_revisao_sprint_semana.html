@@ -40,31 +40,35 @@
     </table>
 
     <script>
-        document.getElementById('filter-usuario').addEventListener('keyup', function() {
-            var value = this.value.toLowerCase();
+        var filters = {
+            'usuario': '',
+            'status': '',
+            'data-criacao': ''
+        };
+
+        function applyFilters() {
             var rows = document.getElementById('sprint-table-body').rows;
             for (var i = 0; i < rows.length; i++) {
                 var usuario = rows[i].cells[4].innerText.toLowerCase();
-                rows[i].style.display = usuario.indexOf(value) > -1 ? '' : 'none';
+                var status = rows[i].cells[7].innerText.toLowerCase();
+                var dataCriacao = rows[i].cells[6].innerText.toLowerCase();
+                rows[i].style.display = usuario.indexOf(filters.usuario) > -1 && status.indexOf(filters.status) > -1 && dataCriacao.indexOf(filters['data-criacao']) > -1 ? '' : 'none';
             }
+        }
+
+        document.getElementById('filter-usuario').addEventListener('keyup', function() {
+            filters.usuario = this.value.toLowerCase();
+            applyFilters();
         });
 
         document.getElementById('filter-status').addEventListener('keyup', function() {
-            var value = this.value.toLowerCase();
-            var rows = document.getElementById('sprint-table-body').rows;
-            for (var i = 0; i < rows.length; i++) {
-                var status = rows[i].cells[7].innerText.toLowerCase();
-                rows[i].style.display = status.indexOf(value) > -1 ? '' : 'none';
-            }
+            filters.status = this.value.toLowerCase();
+            applyFilters();
         });
 
         document.getElementById('filter-data-criacao').addEventListener('keyup', function() {
-            var value = this.value.toLowerCase();
-            var rows = document.getElementById('sprint-table-body').rows;
-            for (var i = 0; i < rows.length; i++) {
-                var dataCriacao = rows[i].cells[6].innerText.toLowerCase();
-                rows[i].style.display = dataCriacao.indexOf(value) > -1 ? '' : 'none';
-            }
+            filters['data-criacao'] = this.value.toLowerCase();
+            applyFilters();
         });
     </script>
 {% endblock %}
