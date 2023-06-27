@@ -5,17 +5,17 @@
     <input type="text" id="filter-usuario" placeholder="Filtrar por Usuário">
     <input type="text" id="filter-status" placeholder="Filtrar por Status">
     <input type="text" id="filter-data-criacao" placeholder="Filtrar por Data de Criação">
-    <table class="styled-table">
+    <table class="styled-table" id="sprint-table">
         <thead>
             <tr>
                 <th>ID</th>
                 <th>Nome da Empresa</th>
-                <th>Prioridade</th>
-                <th>Tarefa</th>
-                <th>Usuário</th>
+                <th onclick="sortTable(2)">Prioridade</th>
+                <th onclick="sortTable(2)">Tarefa</th>
+                <th onclick="sortTable(2)">Usuário</th>
                 <th>Grupo de Usuários</th>
-                <th>Data de Criação</th>
-                <th>Status do Sprint</th>
+                <th onclick="sortTable(2)">Data de Criação</th>
+                <th onclick="sortTable(2)">Status do Sprint</th>
                 <th>Ações</th>
             </tr>
         </thead>
@@ -40,35 +40,74 @@
     </table>
 
     <script>
-        var filters = {
-            'usuario': '',
-            'status': '',
-            'data-criacao': ''
-        };
+    var filters = {
+        'usuario': '',
+        'status': '',
+        'data-criacao': ''
+    };
 
-        function applyFilters() {
-            var rows = document.getElementById('sprint-table-body').rows;
-            for (var i = 0; i < rows.length; i++) {
-                var usuario = rows[i].cells[4].innerText.toLowerCase();
-                var status = rows[i].cells[7].innerText.toLowerCase();
-                var dataCriacao = rows[i].cells[6].innerText.toLowerCase();
-                rows[i].style.display = usuario.indexOf(filters.usuario) > -1 && status.indexOf(filters.status) > -1 && dataCriacao.indexOf(filters['data-criacao']) > -1 ? '' : 'none';
+    function applyFilters() {
+        var rows = document.getElementById('sprint-table-body').rows;
+        for (var i = 0; i < rows.length; i++) {
+            var usuario = rows[i].cells[4].innerText.toLowerCase();
+            var status = rows[i].cells[7].innerText.toLowerCase();
+            var dataCriacao = rows[i].cells[6].innerText.toLowerCase();
+            rows[i].style.display = usuario.indexOf(filters.usuario) > -1 && status.indexOf(filters.status) > -1 && dataCriacao.indexOf(filters['data-criacao']) > -1 ? '' : 'none';
+        }
+    }
+
+    document.getElementById('filter-usuario').addEventListener('keyup', function() {
+        filters.usuario = this.value.toLowerCase();
+        applyFilters();
+    });
+
+    document.getElementById('filter-status').addEventListener('keyup', function() {
+        filters.status = this.value.toLowerCase();
+        applyFilters();
+    });
+
+    document.getElementById('filter-data-criacao').addEventListener('keyup', function() {
+        filters['data-criacao'] = this.value.toLowerCase();
+        applyFilters();
+    });
+
+    function sortTable(n) {
+        var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
+        table = document.getElementById("sprint-table");
+        switching = true;
+        dir = "asc";
+        while (switching) {
+            switching = false;
+            rows = table.rows;
+            for (i = 1; i < (rows.length - 1); i++) {
+                shouldSwitch = false;
+                x = rows[i].getElementsByTagName("TD")[n];
+                y = rows[i + 1].getElementsByTagName("TD")[n];
+                if (dir == "asc") {
+                    if (x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
+                        shouldSwitch = true;
+                        break;
+                    }
+                } else if (dir == "desc") {
+                    if (x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
+                        shouldSwitch = true;
+                        break;
+                    }
+                }
+            }
+            if (shouldSwitch) {
+                rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                switching = true;
+                switchcount ++;
+            } else {
+                if (switchcount == 0 && dir == "asc") {
+                    dir = "desc";
+                    switching = true;
+                }
             }
         }
+    }
+</script>
 
-        document.getElementById('filter-usuario').addEventListener('keyup', function() {
-            filters.usuario = this.value.toLowerCase();
-            applyFilters();
-        });
 
-        document.getElementById('filter-status').addEventListener('keyup', function() {
-            filters.status = this.value.toLowerCase();
-            applyFilters();
-        });
-
-        document.getElementById('filter-data-criacao').addEventListener('keyup', function() {
-            filters['data-criacao'] = this.value.toLowerCase();
-            applyFilters();
-        });
-    </script>
 {% endblock %}
