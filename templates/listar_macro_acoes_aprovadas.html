@@ -3,7 +3,9 @@
 {% block content %}
     <h1>Macro Ações Aprovadas</h1>
     <a href="{{ url_for('cadastrar_macro_acao') }}" class="btn btn-primary">Cadastrar Nova Macro Ação</a>
-    <table class="styled-table">
+    <input type="text" id="filter-empresa" placeholder="Filtrar por Empresa">
+    <input type="text" id="filter-objetivo" placeholder="Filtrar por Objetivo">
+    <table class="styled-table" id="macro-acoes-table">
         <thead>
             <tr>
                 <th>ID</th>
@@ -16,7 +18,7 @@
                 <th>Ações</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="macro-acoes-table-body">
             {% for acao in macro_acoes %}
             <tr>
                 <td>{{ acao.id }}</td>
@@ -34,4 +36,30 @@
             {% endfor %}
         </tbody>
     </table>
+
+    <script>
+    var filters = {
+        'empresa': '',
+        'objetivo': ''
+    };
+
+    function applyFilters() {
+        var rows = document.getElementById('macro-acoes-table-body').rows;
+        for (var i = 0; i < rows.length; i++) {
+            var empresa = rows[i].cells[1].innerText.toLowerCase();
+            var objetivo = rows[i].cells[2].innerText.toLowerCase();
+            rows[i].style.display = empresa.indexOf(filters.empresa) > -1 && objetivo.indexOf(filters.objetivo) > -1 ? '' : 'none';
+        }
+    }
+
+    document.getElementById('filter-empresa').addEventListener('keyup', function() {
+        filters.empresa = this.value.toLowerCase();
+        applyFilters();
+    });
+
+    document.getElementById('filter-objetivo').addEventListener('keyup', function() {
+        filters.objetivo = this.value.toLowerCase();
+        applyFilters();
+    });
+    </script>
 {% endblock %}

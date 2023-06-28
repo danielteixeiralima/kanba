@@ -20,6 +20,7 @@ class Empresa(db.Model):
     objetivos_principais = db.Column(db.Text)
     historico_interacoes = db.Column(db.Text)
     vincular_instagram = db.Column(db.String(200))
+    vincular_anuncio = db.Column(db.String(200))
 
 
 

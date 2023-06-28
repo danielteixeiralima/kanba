@@ -16,6 +16,7 @@
                 <th>Grupo de Usuários</th>
                 <th onclick="sortTable(2)">Data de Criação</th>
                 <th onclick="sortTable(2)">Status do Sprint</th>
+                <th onclick="sortTable(2)">Observações</th> <!-- nova coluna para Observações -->
                 <th>Ações</th>
             </tr>
         </thead>
@@ -30,6 +31,7 @@
                 <td>{{ sprint.usuario_grupo }}</td>
                 <td>{{ sprint.data_criacao.strftime('%d/%m/%Y') }}</td>
                 <td>{{ sprint.dado_1_sprint['status'] }}</td>
+                <td>{{ sprint.dado_1_sprint['observacoes'] }}</td> <!-- novo campo de dados para Observações -->
                 <td>
                     <a href="{{ url_for('atualizar_sprint_revisao', sprint_id=sprint.id) }}" class="btn btn-primary">Atualizar</a>
                     <a href="{{ url_for('deletar_sprint', id=sprint.id, redirect_page='revisao') }}" class="btn btn-danger">Deletar</a>

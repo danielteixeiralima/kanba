@@ -3,7 +3,8 @@
 {% block content %}
     <h1>Usuários</h1>
     <a class="btn" href="{{ url_for('cadastrar_usuario') }}">Cadastrar novo usuário</a>
-    <table class="styled-table">
+    <input type="text" id="filter-empresa" placeholder="Filtrar por Empresa">
+    <table class="styled-table" id="usuarios-table">
         <thead>
             <tr>
                 <th>ID</th>
@@ -18,7 +19,7 @@
                 <th>Ações</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="usuarios-table-body">
             {% for usuario in usuarios %}
             <tr>
                 <td>{{ usuario.id }}</td>
@@ -62,4 +63,23 @@
             {% endfor %}
         </tbody>
     </table>
+
+    <script>
+    var filters = {
+        'empresa': ''
+    };
+
+    function applyFilters() {
+        var rows = document.getElementById('usuarios-table-body').rows;
+        for (var i = 0; i < rows.length; i++) {
+            var empresa = rows[i].cells[5].innerText.toLowerCase();
+            rows[i].style.display = empresa.indexOf(filters.empresa) > -1 ? '' : 'none';
+        }
+    }
+
+    document.getElementById('filter-empresa').addEventListener('keyup', function() {
+       filters.empresa = this.value.toLowerCase();
+        applyFilters();
+    });
+    </script>
 {% endblock %}
