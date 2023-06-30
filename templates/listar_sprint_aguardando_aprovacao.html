@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+    <h1>Sprints Aguardando Aprovação</h1>
+    <table class="styled-table" id="sprint-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nome da Empresa</th>
+                <th>Prioridade</th>
+                <th>Tarefa</th>
+                <th>Responsável</th>
+                <th>Status</th>
+                <th>Observação</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody id="sprint-table-body">
+            {% for sprint in sprints %}
+            <tr>
+                <td>{{ sprint.id }}</td>
+                <td>{{ sprint.nome_empresa }}</td>
+                <td>{{ sprint.prioridade }}</td>
+                <td>{{ sprint.tarefa }}</td>
+                <td>{{ sprint.usuario.nome if sprint.usuario else 'N/A' }}</td>
+                <td>{{ sprint.dado_1_sprint['status'] }}</td>
+                <td>{{ sprint.dado_1_sprint['observacoes'] }}</td>
+                <td>
+                    <form action="{{ url_for('aceitar_sprint_sugerido', sprint_id=sprint.id) }}" method="post">
+                        <button type="submit" class="btn btn-primary">Aceitar</button>
+                    </form>
+                    <form action="{{ url_for('recusar_sprint_sugerido', sprint_id=sprint.id) }}" method="post">
+                        <button type="submit" class="btn btn-danger">Recusar</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

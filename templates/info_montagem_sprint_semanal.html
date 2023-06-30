@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>{{ empresa.nome_contato }}</h1>
+    <p>{{ empresa.descricao_empresa }}</p>
+
+    <h2>OKRs</h2>
+    <ul>
+        {% for okr in okrs_str %}
+            <li>{{ okr.objetivo }}</li>
+        {% endfor %}
+    </ul>
+
+    <h2>KRs</h2>
+    <ul>
+        {% for kr in krs_str %}
+            <li>{{ kr.texto }}</li>
+        {% endfor %}
+    </ul>
+
+    <h2>Sprints</h2>
+    {% for sprint in sprints %}
+        <div>
+            <h3>Sprint {{ loop.index }}</h3>
+            <p>Tarefa: {{ sprint.tarefa }}</p>
+            <p>Responsável: {{ sprint.usuario.nome }}</p>
+            <p>Status: {{ sprint.dado_1_sprint.status }}</p>
+            <p>Observação: {{ sprint.dado_1_sprint.observacoes }}</p>
+        </div>
+    {% endfor %}
+
+    <h2>Usuários e Competências</h2>
+    <ul>
+        {% for usuario in usuarios_competencias_str %}
+            <li>{{ usuario.nome }} - {{ usuario.cargo }}</li>
+        {% endfor %}
+    </ul>
+
+    <h2>Macro Ações</h2>
+    <ul>
+        {% for macro_acao in macro_acoes_str %}
+            <li>{{ macro_acao.texto }}</li>
+        {% endfor %}
+    </ul>
+
+    <form action="{{ url_for('criar_sprint_semana_revisao') }}" method="post" class="form-group">
+        <input type="hidden" name="empresa" value="{{ empresa.id }}">
+        <button type="submit" class="btn btn-primary">Gerar Sprint</button>
+    </form>
+{% endblock %}

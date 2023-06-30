@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, abort, flash
-from models import db, Empresa, Resposta, Usuario, OKR, KR, MacroAcao, Sprint, TarefaSemanal
+from models import db, Empresa, Resposta, Usuario, OKR, KR, MacroAcao, Sprint, TarefaSemanal, SprintPendente
 import requests
 import json
 import threading
@@ -1184,6 +1184,164 @@ def criar_sprint_semana():
     return render_template('montagem_sprint_semana.html')
 
 
+
+
+@app.route('/criar_sprint_semana_revisao', methods=['GET', 'POST'])
+@login_required
+def criar_sprint_semana_revisao():
+    if request.method == 'POST':
+        empresa_id = request.form.get('empresa')
+        empresa = db.session.get(Empresa, empresa_id)
+        if empresa is None:
+            return redirect(url_for('montagem_sprint_semana'))
+
+        SprintPendente.query.filter_by(empresa_id=empresa.id).delete()
+
+        macro_acoes = MacroAcao.query.filter_by(empresa_id=empresa.id).all()
+        okrs = OKR.query.filter_by(id_empresa=empresa.id).all()
+        krs = KR.query.filter_by(id_empresa=empresa.id).all()
+        sprints = Sprint.query.filter_by(empresa_id=empresa.id).all()
+        usuarios = Usuario.query.filter_by(id_empresa=empresa.id).all()
+
+        usuarios_competencias_str = ', '.join([f'{usuario.nome} ({usuario.cargo}, id: {usuario.id})' for usuario in usuarios])
+        macro_acoes_str = ', '.join([acao.texto for acao in macro_acoes])
+        okrs_str = ', '.join([okr.objetivo for okr in okrs])
+        krs_str = ', '.join([kr.texto for kr in krs])
+        sprints_str = ', '.join([
+            f'Sprint {sprint.id}: Tarefa - {sprint.tarefa}, Responsável - {sprint.usuario.nome}, Status - {sprint.dado_1_sprint.get("status", "N/A")}, Observação - {sprint.dado_1_sprint.get("observacoes", "N/A")}'
+            for sprint in sprints])
+        usuarios_str = ', '.join([f'{usuario.nome} ({usuario.cargo})' for usuario in usuarios])
+
+        pergunta = f"""Considerando os OKRs da empresa {okrs_str} para os próximos 90 dias, os KR's ligados a cada objetivo {krs_str}, o sprint atual {sprints_str}, e os perfis de competências dos colaboradores da equipe {usuarios_competencias_str}, gostaria de propor um plano de sprint para a próxima semana.
+
+        Para desenvolver este plano, é importante levar em consideração as seguintes informações:
+
+        1. Os OKRs da empresa para os próximos 90 dias: {okrs_str}
+        2. Os KR's ligados a cada objetivo: {krs_str}
+        3. A lista de macro ações estratégicas geradas a partir dos OKRs e KR's: {macro_acoes_str}
+        4. As habilidades e competências específicas dos colaboradores da equipe: {usuarios_competencias_str}
+        5. A descrição da empresa: {empresa.descricao_empresa}
+        6. O sprint atual da equipe: {sprints_str}
+
+        Com base nessas informações, o objetivo é criar um plano de sprint para a próxima semana. Este plano deve definir tarefas específicas, priorizar as mais críticas, e detalhar como cada tarefa suporta os OKRs e KR's definidos.
+
+        Além disso, é essencial atribuir um responsável para cada tarefa, de acordo com as habilidades e competências dos colaboradores.
+
+        Para facilitar o entendimento do plano, responda apenas em formato JSON, com as seguintes chaves: prioridade (como um número, onde 1 é a maior prioridade e conforme a prioridade for diminuindo o numero vai aumentando), tarefa, responsável (utilize o ID do usuário e seja sempre um int).
+
+        Não precisa fazer nenhum tipo de comentário. Responda somente com o JSON necessário. 
+
+        Por favor, substitua os placeholders pelos valores reais."""
+        print(pergunta)
+        messages = [{"role": "system", "content": "You are a helpful assistant."}]
+        resposta, messages = perguntar_gpt(pergunta, empresa_id, messages)
+
+        print("Resposta do GPT-4:")
+        print(resposta)
+
+        inicio_json = resposta.find('[')
+        final_json = resposta.rfind(']')
+
+        if inicio_json == -1 or final_json == -1:
+            print(f"Erro ao decodificar JSON: não foi possível encontrar um objeto JSON na resposta")
+            print(f"Resposta: {resposta}")
+            return redirect(url_for('montagem_sprint_semana'))
+
+        json_str = resposta[inicio_json:final_json + 1]
+
+        try:
+            sprints = json.loads(json_str)
+        except json.JSONDecodeError as e:
+            print(f"Erro ao decodificar JSON: {str(e)}")
+            print(f"Resposta:{resposta}")
+            return redirect(url_for('montagem_sprint_semana'))
+
+        SprintPendente.query.filter_by(empresa_id=empresa.id).delete()
+
+        for sprint in sprints:
+            print(f"Processing sprint: {sprint}")
+
+            if 'tarefa' not in sprint or 'responsavel' not in sprint:
+                print(f"Erro: o sprint não contém as chaves 'tarefa' ou 'responsavel'. Sprint: {sprint}")
+                continue
+
+            responsavel_id = sprint.get('responsavel')
+            if not responsavel_id:
+                print(f"Responsável ID não especificado ou inválido para o sprint {sprint['tarefa']}.")
+                continue
+
+            # Busque o usuário pelo ID no banco de dados.
+            usuario = Usuario.query.get(responsavel_id)
+
+            if usuario is None or usuario.id_empresa != empresa.id:
+                print(
+                    f"Usuário com ID {responsavel_id} não encontrado na base de dados para a empresa {empresa.nome_contato}. Sprint: {sprint}")
+                continue
+
+            novo_sprint = SprintPendente(
+                empresa_id=empresa.id,
+                nome_empresa=empresa.nome_contato,
+                prioridade=sprint['prioridade'],
+                tarefa=sprint['tarefa'],
+                usuario_id=usuario.id,
+                usuario=usuario,  # Adicione esta linha
+                dado_1_sprint={"status": "pendente", "data_conclusao": None, "observacoes": ""}
+            )
+            db.session.add(novo_sprint)
+
+        db.session.commit()
+
+        return redirect(url_for('montagem_sprint_semana'))
+@app.route('/listar_sprint_aguardando_aprovacao', methods=['GET'])
+@login_required
+def listar_sprint_aguardando_aprovacao():
+    if current_user.is_admin:
+        sprints = SprintPendente.query.all()
+    else:
+        sprints = SprintPendente.query.filter_by(usuario_id=current_user.id).all()
+    return render_template('listar_sprint_aguardando_aprovacao.html', sprints=sprints)
+
+
+
+@app.route('/aceitar_sprint_sugerido/<int:sprint_id>', methods=['POST'])
+@login_required
+def aceitar_sprint_sugerido(sprint_id):
+    sprint_pendente = SprintPendente.query.get(sprint_id)
+    if sprint_pendente is None:
+        flash('Sprint não encontrado.', 'error')
+        return redirect(url_for('listar_sprint_aguardando_aprovacao'))
+
+    novo_sprint = Sprint(
+        empresa_id=sprint_pendente.empresa_id,
+        nome_empresa=sprint_pendente.nome_empresa,
+        prioridade=sprint_pendente.prioridade,
+        tarefa=sprint_pendente.tarefa,
+        usuario_id=sprint_pendente.usuario_id,
+        usuario_grupo=sprint_pendente.usuario_grupo,
+        dado_1_sprint=sprint_pendente.dado_1_sprint
+    )
+    db.session.add(novo_sprint)
+    db.session.delete(sprint_pendente)
+    db.session.commit()
+
+    flash('Sprint aceito com sucesso.', 'success')
+    return redirect(url_for('listar_sprint_aguardando_aprovacao'))
+
+
+@app.route('/recusar_sprint_sugerido/<int:sprint_id>', methods=['POST'])
+@login_required
+def recusar_sprint_sugerido(sprint_id):
+    sprint_pendente = SprintPendente.query.get(sprint_id)
+    if sprint_pendente is None:
+        flash('Sprint não encontrado.', 'error')
+        return redirect(url_for('listar_sprint_aguardando_aprovacao'))
+
+    db.session.delete(sprint_pendente)
+    db.session.commit()
+
+    flash('Sprint recusado com sucesso.', 'success')
+    return redirect(url_for('listar_sprint_aguardando_aprovacao'))
+
 @app.route('/revisar_sprint', methods=['GET', 'POST'])
 @login_required
 def revisar_sprint():
@@ -2104,6 +2262,25 @@ def montagem_sprint_semana_rotina():
 
     # Renderiza o template de criação de sprint
     return render_template('montagem_sprint_semana_rotina.html', sprint_anterior=sprint_anterior, empresa=empresa)
+
+@app.route('/selecionar_empresa_sprint_semanal', methods=['GET'])
+def selecionar_empresa_sprint_semanal():
+    empresas = Empresa.query.all()  # Obter todas as empresas
+    return render_template('selecionar_empresa_sprint_semanal.html', empresas=empresas)
+
+@app.route('/info_montagem_sprint_semanal', methods=['POST'])
+def info_montagem_sprint_semanal():
+    id_empresa = request.form.get('empresa')  # Obter o ID da empresa selecionada pelo usuário
+    empresa = Empresa.query.get(id_empresa)  # Obter a empresa pelo ID
+
+    # Obter as informações relevantes
+    okrs_str = OKR.query.filter_by(id_empresa=id_empresa)
+    krs_str = KR.query.filter_by(id_empresa=id_empresa)
+    sprints = Sprint.query.filter_by(empresa_id=id_empresa).all()  # Obter todos os sprints
+    usuarios_competencias_str = Usuario.query.filter_by(id_empresa=id_empresa)
+    macro_acoes_str = MacroAcao.query.filter_by(empresa_id=id_empresa)
+
+    return render_template('info_montagem_sprint_semanal.html', empresa=empresa, okrs_str=okrs_str, krs_str=krs_str, sprints=sprints, usuarios_competencias_str=usuarios_competencias_str, macro_acoes_str=macro_acoes_str)
 
 
 

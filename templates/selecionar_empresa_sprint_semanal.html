@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Selecione a Empresa</h1>
+    <form method="POST" action="{{ url_for('info_montagem_sprint_semanal') }}">
+        <div class="form-group">
+            <label for="empresa">Empresa:</label>
+            <select id="empresa" name="empresa" class="form-control">
+                {% for empresa in empresas %}
+                    <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">OK</button>
+    </form>
+{% endblock %}
+

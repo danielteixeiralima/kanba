@@ -47,7 +47,8 @@
     <button class="dropbtn">Acompanhamento</button>
     <div class="dropdown-content">
         <a href="{{ url_for('revisao_sprint_semana') }}">Sprint da Semana</a>
-        <a href="#">Montagem Sprint da Semana - GPT4</a>
+        <a href="{{ url_for('selecionar_empresa_sprint_semanal') }}">Montagem Sprint da Semana - GPT4</a>
+        <a href="{{ url_for('listar_sprint_aguardando_aprovacao') }}">Sprints Pendentes</a>
     </div>
     </div>
 

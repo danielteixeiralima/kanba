@@ -127,6 +127,19 @@ class Sprint(db.Model):
     dado_1_sprint = db.Column(db.JSON, default={"status": "pendente", "data_conclusao": None, "observacoes": ""})
 
 
+class SprintPendente(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
+    nome_empresa = db.Column(db.String(120), nullable=False)
+    prioridade = db.Column(db.Integer, nullable=False)
+    tarefa = db.Column(db.Text, nullable=False)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'))
+    usuario = db.relationship('Usuario', backref='sprints_pendentes')
+    usuario_grupo = db.Column(db.String(120), nullable=True)
+    data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
+    dado_1_sprint = db.Column(db.JSON, default={"status": "pendente", "data_conclusao": None, "observacoes": ""})
+
+
 
 def is_base64(s):
     try:
@@ -219,4 +232,16 @@ class AnaliseInstagram(db.Model):
         }
 
 
-
+class analise_anuncios(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    id_empresa = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
+    empresa = db.relationship('Empresa', backref='respostas')
+    nome_campanha = db.Column(db.Text)
+    nome_grupo = db.Column(db.Text)
+    nome_anuncio = db.Column(db.Text)
+    valor = db.Column(db.Float)
+    impressoes = db.Column(db.Integer)
+    landing = db.Column(db.Integer)
+    cpm = db.Column(db.Float)
+    ctr = db.Column(db.Float)
+    cpc = db.Column(db.Float)
