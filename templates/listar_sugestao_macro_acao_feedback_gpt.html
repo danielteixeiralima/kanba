@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Listar Sugestões de Macro Ações</h1>
+    <table class="styled-table">
+        <thead>
+            <tr>
+                <th>ID Macro Ação</th>
+                <th>Empresa</th>
+                <th>Squad</th>
+                <th>Objetivo</th>
+                <th>KR</th>
+                <th>Macro Ação</th>
+                <th>Ação</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sugestao in sugestoes %}
+                <tr>
+                    <td>{{ sugestao.id }}</td> <!-- Mudar para sugestao.id -->
+                    <td>{{ sugestao.empresa_nome_contato }}</td>
+                    <td>{{ sugestao.squad_nome }}</td>
+                    <td>{{ sugestao.objetivo_nome }}</td>
+                    <td>{{ sugestao.kr_nome }}</td>
+                    <td>{{ sugestao.macro_acao }}</td>
+                    <td>
+                        <button type="button" class="btn btn-danger" onclick="deletarMacroAcao({{ sugestao.id }})">Deletar</button>
+                        <button type="button" class="btn btn-success" onclick="aprovarMacroAcao({{ sugestao.id }})">Aprovar</button>
+
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Formulário contendo os IDs da empresa e do squad -->
+    <form id="feedbackForm">
+        <input type="hidden" id="empresa" name="empresa" value="{{ empresa_id }}">
+        <input type="hidden" id="squad" name="squad" value="{{ squad_id }}">
+        <label for="feedback">Feedback:</label>
+        <textarea id="feedback" name="feedback"></textarea>
+        <button type="button" onclick="enviarFeedback()">OK</button>
+    </form>
+
+    <script>
+        $('#deleteModal').on('show.bs.modal', function (event) {
+            var button = $(event.relatedTarget);
+            var objetivoId = button.data('objetivo');
+            var action = "{{ url_for('deletar_macro_acao_gpt_prompt_gpt', id=0) }}".replace('0', objetivoId);
+            $('#deleteForm').attr('action', action);
+        });
+
+        function enviarFeedback(event) {
+            // Se você estiver chamando essa função de um evento de envio de formulário, descomente a linha abaixo
+            // event.preventDefault();
+
+            var feedback = document.getElementById('feedback').value;
+            var empresaId = document.getElementById('empresa').value;
+            var squadId = document.getElementById('squad').value;
+
+            if (!empresaId || !squadId) {
+                console.error('Empresa ou Squad ID não definido.');
+                return;
+            }
+
+            $.ajax({
+                url: "{{ url_for('gerar_macro_acoes_prompt_gpt_feedback') }}",
+                method: "POST",
+                contentType: "application/json;charset=utf-8",
+                data: JSON.stringify({
+                    feedback: feedback,
+                    empresa_id: empresaId,
+                    squad_id: squadId
+                }),
+                dataType: "json", // esperando uma resposta JSON
+                success: function() {
+                    window.location.reload();
+                },
+                error: function(xhr) {
+                    console.error('Erro ao enviar feedback:', xhr.responseJSON ? xhr.responseJSON.error : xhr.responseText);
+                }
+            });
+        }
+
+        function aprovarMacroAcao(id) {
+            console.log("ID recebido:", id);
+            var url = "{{ url_for('aprovar_macro_acao_gpt', id=0) }}".replace('0', id);
+            console.log('URL:', url);
+            $.post(url, function() {
+                window.location.reload();
+            });
+        }
+
+        function deletarMacroAcao(id) {
+            if (confirm("Tem certeza que deseja deletar essa sugestão de Macro Ação?")) {
+                var url = "{{ url_for('deletar_macro_acao_gerado_chat_aprovacao', id=0) }}".replace('0', id);
+                $.ajax({
+                    url: url,
+                    method: "DELETE",
+                    success: function() {-
+                        window.location.reload();
+                    },
+                    error: function(xhr) {
+                        console.error('Erro ao deletar sugestão:', xhr.responseJSON ? xhr.responseJSON.error : xhr.responseText);
+                    }
+                });
+            }
+        }
+
+
+    </script>
+{% endblock %}

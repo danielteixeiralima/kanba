@@ -1,11 +1,10 @@
 from flask import Flask, render_template, request, redirect, url_for, session, abort, flash
-from models import db, Empresa, Resposta, Usuario, OKR, KR, MacroAcao, Sprint, TarefaSemanal, SprintPendente
+from models import db, Empresa, Resposta, Usuario, OKR, KR, MacroAcao, Sprint, TarefaSemanal, SprintPendente, Squad, FormsObjetivos, ObjetivoGeradoChatAprovacao, KrGeradoChatAprovacao, MacroAcaoGeradoChatAprovacao, TarefasMetasSemanais
 import requests
 import json
-import threading
+from collections import defaultdict
 from flask_migrate import Migrate
 from flask import jsonify
-from datetime import datetime
 from dotenv import load_dotenv
 import os
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required
@@ -17,12 +16,16 @@ from googleapiclient.discovery import build
 import base64
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from googleapiclient.errors import HttpError
-import schedule
 import time
 import re
 from flask_login import current_user
-from datetime import datetime, timedelta
+from sqlalchemy.exc import IntegrityError
+from json import dumps, loads
+import openpyxl
+import uuid
+import logging
+from sqlalchemy.orm import joinedload
+
 
 
 load_dotenv()  # Carrega as variáveis de ambiente do arquivo .env
@@ -371,11 +374,6 @@ def request_loader(request):
         return
     return Usuario.query.get(int(user_id))
 
-
-
-# Função de callback para recarregar o usuário do ID de sessão armazenado
-
-
 def json_loads(value):
     return json.loads(value)
 
@@ -691,8 +689,16 @@ def convert_string_to_datetime(date_string):
 def cadastrar_okr():
     if request.method == 'POST':
         try:
+            # Obter o squad_id do formulário
+            squad_id = request.form.get('squad')
+            if not squad_id:
+                # Se o squad_id não for fornecido, mostrar uma mensagem de erro.
+                flash('Por favor, selecione um squad.', 'error')
+                return redirect(url_for('cadastrar_okr'))
+
             okr = OKR(
                 id_empresa=request.form.get('empresa'),
+                squad_id=squad_id,  # Aqui estamos incluindo o squad_id
                 objetivo=request.form.get('objetivo'),
                 data_inicio=convert_string_to_datetime(request.form.get('data_inicio')),
                 data_fim=convert_string_to_datetime(request.form.get('data_fim')),
@@ -702,11 +708,20 @@ def cadastrar_okr():
             return redirect(url_for('listar_okrs'))  # Redireciona para a página de listagem de OKRs
         except ValueError:
             flash('A data fornecida é inválida. Use o formato YYYY-MM-DD.', 'error')
+
     if current_user.is_admin:
         empresas = Empresa.query.all()
     else:
         empresas = Empresa.query.filter_by(id=current_user.id_empresa).all()
-    return render_template('cadastrar_okr.html', empresas=empresas)
+
+    # Supondo que você deseja carregar todos os squads caso seja admin, ou apenas os squads associados à empresa do usuário
+    if current_user.is_admin:
+        squads = Squad.query.all()
+    else:
+        squads = Squad.query.filter_by(empresa_id=current_user.id_empresa).all()
+
+    return render_template('cadastrar_okr.html', empresas=empresas, squads=squads)  # Enviando squads para o template também
+
 
 @app.route('/listar/okrs', methods=['GET'])
 @login_required
@@ -723,18 +738,25 @@ def atualizar_okr(id):
     okr = OKR.query.get(id)
     if okr.id_empresa != current_user.id_empresa and not current_user.is_admin:
         abort(403)  # Forbidden
+
     if request.method == 'POST':
         okr.id_empresa = request.form['empresa']
+        okr.squad_id = request.form['squad']  # Adiciona essa linha para atualizar o squad
         okr.objetivo = request.form['objetivo']
         okr.data_inicio = datetime.strptime(request.form['data_inicio'], "%Y-%m-%d")
         okr.data_fim = datetime.strptime(request.form['data_fim'], "%Y-%m-%d")
         db.session.commit()
         return redirect(url_for('listar_okrs'))
+
     if current_user.is_admin:
         empresas = Empresa.query.all()
+        squads = Squad.query.all()  # Se for admin, buscar todos os squads
     else:
         empresas = Empresa.query.filter_by(id=current_user.id_empresa).all()
-    return render_template('atualizar_okr.html', okr=okr, empresas=empresas)
+        squads = Squad.query.filter_by(empresa_id=current_user.id_empresa).all()
+
+    return render_template('atualizar_okr.html', okr=okr, empresas=empresas, squads=squads)  # Enviando squads para o template também
+
 
 @app.route('/deletar/okr/<int:id>', methods=['POST'])
 @login_required
@@ -790,15 +812,11 @@ def atualizar_kr(id):
     if kr.id_empresa != current_user.id_empresa and not current_user.is_admin:
         abort(403)  # Forbidden
     if request.method == 'POST':
-        id_empresa = request.form['empresa']
-        id_okr = request.form['okr']
         texto = request.form['texto']
+        meta = request.form['meta']  # Novo campo
 
-        # Obtenha a instância OKR e atribua-a ao KR.
-        okr = OKR.query.get(id_okr)
-        kr.okr = okr
-        kr.id_empresa = id_empresa  # Atualize o id da empresa
         kr.texto = texto
+        kr.meta = meta   # Atualize a meta
         db.session.commit()
         return redirect(url_for('listar_krs'))
 
@@ -809,6 +827,7 @@ def atualizar_kr(id):
     okrs = OKR.query.filter_by(id_empresa=kr.id_empresa).all()
 
     return render_template('atualizar_kr.html', empresas=empresas, kr=kr, okrs=okrs)
+
 
 
 
@@ -850,6 +869,26 @@ def get_okrs(empresa_id):
 
     return jsonify(okrs_dict)
 
+@app.route('/get_okrs_by_squad/<int:squad_id>', methods=['GET'])
+@login_required
+def get_okrs_by_squad(squad_id):
+    squad = Squad.query.get(squad_id)
+    if not squad:
+        abort(404)  # Retorna um erro 404 se o Squad não for encontrado
+
+    # Verificação adicional de permissão: se o usuário não é da empresa do Squad e não é admin, nega acesso
+    if squad.empresa_id != current_user.id_empresa and not current_user.is_admin:
+        abort(403)  # Forbidden
+
+    okrs = OKR.query.filter_by(squad_id=squad.id).all()
+
+    # Converte a lista de OKRs em uma lista de dicionários para poder ser serializada em JSON
+    okrs_dict = [{'id': okr.id, 'objetivo': okr.objetivo} for okr in okrs]
+
+    return jsonify(okrs_dict)
+
+
+
 @app.route('/deletar/kr/<int:id>', methods=['POST'])
 @login_required
 def deletar_kr(id):
@@ -873,6 +912,17 @@ def get_objectives(empresa_id):
     return jsonify(objectives)
 
 
+@app.route('/get_objectives_by_squad/<int:squad_id>', methods=['GET'])
+@login_required
+def get_objectives_by_squad(squad_id):
+    if not current_user.is_admin:
+        squad = Squad.query.get(squad_id)
+        if squad.empresa_id != current_user.id_empresa:
+            abort(403)  # Forbidden
+
+    okrs = OKR.query.filter_by(squad_id=squad_id).all()
+    objectives = [{'id': okr.id, 'objetivo': okr.objetivo} for okr in okrs]
+    return jsonify(objectives)
 
 
 @app.route('/listar_macro_acao')
@@ -1039,15 +1089,15 @@ def deletar_macro_acao(id):
     db.session.commit()
     return redirect(url_for('listar_macro_acoes_aprovadas'))
 
+
 @app.route('/listar_macro_acoes_aprovadas', methods=['GET'])
 @login_required
 def listar_macro_acoes_aprovadas():
     if current_user.is_admin:
-        macro_acoes = MacroAcao.query.all()  # Busca todas as MacroAcoes se for admin
+        macro_acoes = MacroAcao.query.options(joinedload(MacroAcao.squad)).all()  # Carrega Squad junto com MacroAcao
     else:
-        macro_acoes = MacroAcao.query.join(KR).filter(KR.id_empresa == current_user.id_empresa).all()  # Busca apenas as MacroAcoes da empresa do usuário
+        macro_acoes = MacroAcao.query.join(KR).filter(KR.id_empresa == current_user.id_empresa).options(joinedload(MacroAcao.squad)).all()  # Carrega Squad junto com MacroAcao
     return render_template('listar_macro_acoes_aprovadas.html', macro_acoes=macro_acoes)
-
 
 
 @app.route('/montagem_sprint_semana')
@@ -1063,12 +1113,12 @@ def get_objetivos(empresa_id):
     return jsonify([{'id': objetivo.id, 'objetivo': objetivo.objetivo} for objetivo in objetivos])
 
 
-@app.route('/get_krs/<int:objetivo_id>')
+@app.route('/get_krs/<int:empresa_id>/<int:squad_id>/<int:objetivo_id>')
 @login_required
-def get_krs(objetivo_id):
-    krs = KR.query.filter_by(id_okr=objetivo_id).all()
-    return jsonify([{'id': kr.id, 'texto': kr.texto} for kr in krs])
-
+def get_krs(empresa_id, squad_id, objetivo_id):
+    krs = KR.query.filter_by(id_empresa=empresa_id, squad_id=squad_id, id_okr=objetivo_id).all()
+    krs_list = [{'id': kr.id, 'texto': kr.texto} for kr in krs]
+    return jsonify(krs_list)
 
 
 
@@ -1212,26 +1262,28 @@ def criar_sprint_semana_revisao():
             for sprint in sprints])
         usuarios_str = ', '.join([f'{usuario.nome} ({usuario.cargo})' for usuario in usuarios])
 
-        pergunta = f"""Considerando os OKRs da empresa {okrs_str} para os próximos 90 dias, os KR's ligados a cada objetivo {krs_str}, o sprint atual {sprints_str}, e os perfis de competências dos colaboradores da equipe {usuarios_competencias_str}, gostaria de propor um plano de sprint para a próxima semana.
+        pergunta = f"""Olá GPT,
 
-        Para desenvolver este plano, é importante levar em consideração as seguintes informações:
+                        Para planejar nosso próximo sprint de uma semana, preciso que você leve em conta os OKRs da empresa {okrs_str} para os próximos 90 dias, os KR's ligados a cada objetivo {krs_str}, o sprint atual {sprints_str}, o estado atual das tarefas e os perfis de competências dos colaboradores da equipe {usuarios_competencias_str}.
+                        
+                        Ao criar este plano, por favor, considere as seguintes informações:
+                        
+                        Os OKRs da empresa para os próximos 90 dias: {okrs_str}
+                        Os KR's ligados a cada objetivo: {krs_str}
+                        A lista de macro ações estratégicas geradas a partir dos OKRs e KR's: {macro_acoes_str}
+                        As habilidades e competências específicas dos colaboradores da equipe: {usuarios_competencias_str}
+                        A descrição da empresa: {empresa.descricao_empresa}
+                        O sprint atual da equipe e o estado atual das tarefas: {sprints_str}
+                        Com essas informações em mente, por favor, desenvolva um plano de sprint para a próxima semana. Este plano deve definir tarefas específicas que resultem em entregas concretas, como relatórios ou apresentações, e não apenas atividades como "pensar" ou "analisar". Cada tarefa deve ser priorizada com base em sua importância para alcançar nossos OKRs e KR's.
+                        
+                        Além disso, identifique o responsável por cada tarefa de acordo com as habilidades e competências dos membros da equipe.
+                        
+                        Responda em formato JSON, usando as seguintes chaves: prioridade (como um número, onde 1 é a maior prioridade e os números aumentam conforme a prioridade diminui), tarefa, responsável (utilize o ID do usuário e seja sempre um int), status (em progresso, pendente, concluída).
+                        
+                        Lembre-se de que este plano é estratégico: não precisa fazer nenhum tipo de comentário, apenas responda com o JSON necessário.
 
-        1. Os OKRs da empresa para os próximos 90 dias: {okrs_str}
-        2. Os KR's ligados a cada objetivo: {krs_str}
-        3. A lista de macro ações estratégicas geradas a partir dos OKRs e KR's: {macro_acoes_str}
-        4. As habilidades e competências específicas dos colaboradores da equipe: {usuarios_competencias_str}
-        5. A descrição da empresa: {empresa.descricao_empresa}
-        6. O sprint atual da equipe: {sprints_str}
-
-        Com base nessas informações, o objetivo é criar um plano de sprint para a próxima semana. Este plano deve definir tarefas específicas, priorizar as mais críticas, e detalhar como cada tarefa suporta os OKRs e KR's definidos.
-
-        Além disso, é essencial atribuir um responsável para cada tarefa, de acordo com as habilidades e competências dos colaboradores.
-
-        Para facilitar o entendimento do plano, responda apenas em formato JSON, com as seguintes chaves: prioridade (como um número, onde 1 é a maior prioridade e conforme a prioridade for diminuindo o numero vai aumentando), tarefa, responsável (utilize o ID do usuário e seja sempre um int).
-
-        Não precisa fazer nenhum tipo de comentário. Responda somente com o JSON necessário. 
-
-        Por favor, substitua os placeholders pelos valores reais."""
+                        Aguardo seu plano de sprint.
+                        """
         print(pergunta)
         messages = [{"role": "system", "content": "You are a helpful assistant."}]
         resposta, messages = perguntar_gpt(pergunta, empresa_id, messages)
@@ -1927,16 +1979,18 @@ def deletar_tarefa_semanal(id):
 def cadastrar_macro_acao():
     if request.method == 'POST':
         id_empresa = int(request.form.get('empresa', '0'))
+        id_squad = int(request.form.get('squad', '0'))
         id_objetivo = int(request.form.get('objetivo', '0'))
         id_kr = int(request.form.get('kr', '0'))
         texto = request.form['texto']
 
         empresa = Empresa.query.get(id_empresa)
+        squad = Squad.query.get(id_squad)
         objetivo = OKR.query.get(id_objetivo)
         kr = KR.query.get(id_kr)
 
-        if empresa is None or objetivo is None or kr is None:
-            return "Empresa, Objetivo ou KR não encontrado", 404
+        if not all([empresa, squad, objetivo, kr]):
+            return "Empresa, Squad, Objetivo ou KR não encontrado", 404
 
         macro_acao = MacroAcao(
             texto=texto,
@@ -1945,21 +1999,25 @@ def cadastrar_macro_acao():
             objetivo_id=objetivo.id,
             empresa=empresa.nome_contato,
             empresa_id=empresa.id,
+            squad_id=squad.id
         )
+
         db.session.add(macro_acao)
         db.session.commit()
-        return redirect(url_for('listar_macro_acoes_aprovadas'))  # Redirecionamento atualizado
+        return redirect(url_for('listar_macro_acoes_aprovadas'))
 
     if current_user.is_admin:
         empresas = Empresa.query.all()
+        squads = Squad.query.all()
         objetivos = OKR.query.all()
         krs = KR.query.all()
     else:
         empresas = Empresa.query.filter_by(id=current_user.id_empresa).all()
+        squads = Squad.query.filter_by(empresa_id=current_user.id_empresa).all()
         objetivos = OKR.query.filter_by(id_empresa=current_user.id_empresa).all()
         krs = KR.query.filter_by(id_empresa=current_user.id_empresa).all()
 
-    return render_template('cadastrar_macro_acao.html', empresas=empresas, objetivos=objetivos, krs=krs)
+    return render_template('cadastrar_macro_acao.html', empresas=empresas, squads=squads, objetivos=objetivos, krs=krs)
 
 
 
@@ -2116,11 +2174,12 @@ def mural(empresa_id):
 
     tarefas = TarefaSemanal.query.filter_by(empresa_id=empresa_id).all()
 
-    # Buscar todos os Sprints para a empresa
-    sprints = Sprint.query.filter_by(empresa_id=empresa_id).all()
+    # Organiza as tarefas por usuário
+    tarefas_por_usuario = defaultdict(list)
+    for tarefa in tarefas:
+        tarefas_por_usuario[tarefa.usuario].append(tarefa)
 
-    # Passar os OKRs (com KRs e MacroAções aninhados), Tarefas e Sprints para o template
-    return render_template('mural.html', empresa=empresa, objetivos=objetivos, tarefas=tarefas, sprints=sprints)
+    return render_template('mural.html', empresa=empresa, objetivos=objetivos, tarefas_por_usuario=tarefas_por_usuario)
 
 
 
@@ -2281,6 +2340,987 @@ def info_montagem_sprint_semanal():
     macro_acoes_str = MacroAcao.query.filter_by(empresa_id=id_empresa)
 
     return render_template('info_montagem_sprint_semanal.html', empresa=empresa, okrs_str=okrs_str, krs_str=krs_str, sprints=sprints, usuarios_competencias_str=usuarios_competencias_str, macro_acoes_str=macro_acoes_str)
+
+
+
+@app.route('/listar_squad')
+def listar_squad():
+    squads = Squad.query.all()
+    return render_template('listar_squad.html', squads=squads)
+
+@app.route('/incluir_squad', methods=['GET', 'POST'])
+def incluir_squad():
+    if request.method == 'POST':
+        empresa_id = request.form['empresa']
+        nome_squad = request.form['nome_squad']
+        usuarios_ids = request.form.getlist('usuarios')
+        data_inicio = datetime.strptime(request.form['data_inicio'], '%Y-%m-%d')
+        data_fim = datetime.strptime(request.form['data_fim'], '%Y-%m-%d') if request.form['data_fim'] else None
+
+        empresa = Empresa.query.get(empresa_id)
+        usuarios = Usuario.query.filter(Usuario.id.in_(usuarios_ids)).all()
+
+        squad = Squad(empresa=empresa, nome_squad=nome_squad, data_inicio=data_inicio, data_fim=data_fim)
+        squad.usuarios.extend(usuarios)
+
+        db.session.add(squad)
+        db.session.commit()
+
+        return redirect(url_for('listar_squad'))
+
+    empresas = Empresa.query.all()
+    usuarios = Usuario.query.all()  # Aqui você pode otimizar a consulta para selecionar apenas os usuários vinculados às empresas
+    return render_template('incluir_squad.html', empresas=empresas, usuarios=usuarios)
+
+
+
+@app.route('/editar_squad/<int:squad_id>', methods=['GET', 'POST'])
+def editar_squad(squad_id):
+    # Nota: troque o .get por .query.get_or_404 para simplificar a verificação se o squad existe
+    squad = Squad.query.get_or_404(squad_id)
+
+    if request.method == 'POST':
+        empresa_id = request.form['empresa']
+        nome_squad = request.form['nome_squad']
+        usuarios_ids = request.form.getlist('usuarios')
+        data_inicio = datetime.strptime(request.form['data_inicio'], '%Y-%m-%d')
+        data_fim = datetime.strptime(request.form['data_fim'], '%Y-%m-%d') if request.form['data_fim'] else None
+
+        empresa = Empresa.query.get(empresa_id)
+        usuarios = Usuario.query.filter(Usuario.id.in_(usuarios_ids)).all()
+
+        # Aqui você pode adicionar alguma validação para garantir que a empresa e os usuários são permitidos.
+
+        squad.empresa = empresa
+        squad.nome_squad = nome_squad
+        squad.data_inicio = data_inicio
+        squad.data_fim = data_fim
+        squad.usuarios = usuarios
+
+        db.session.commit()
+
+        return redirect(url_for('listar_squad'))
+
+    # Aqui você filtra os usuários vinculados à mesma empresa do squad
+    usuarios = Usuario.query.filter_by(id_empresa=squad.empresa.id).all()
+    empresas = Empresa.query.all()
+
+    return render_template('editar_squad.html', empresas=empresas, usuarios=usuarios, squad=squad)
+
+@app.route('/deletar_squad/<int:squad_id>', methods=['POST'])
+def deletar_squad(squad_id):
+    squad = Squad.query.get_or_404(squad_id)
+    db.session.delete(squad)
+    db.session.commit()
+    flash('Squad deletado com sucesso!', 'success')
+    return redirect(url_for('listar_squad'))
+
+
+@app.route('/forms_objetivo', methods=['GET', 'POST'])
+def forms_objetivo():
+    empresas = Empresa.query.all()
+
+    if request.method == 'POST':
+        empresa_id = request.form['empresa_id']
+        squad_id = request.form['squad_id']
+        file = request.files['file']
+
+        # Processar o arquivo Excel
+        workbook = openpyxl.load_workbook(file)
+        sheet = workbook.active
+
+        # Ler as informações da planilha
+        perguntas_respostas = []
+        for row in sheet.iter_rows(values_only=True):
+            perguntas_respostas.append([cell.isoformat() if isinstance(cell, datetime) else cell for cell in row])
+
+        return render_template('listar_perguntas_respostas_objetivos.html',
+                               perguntas_respostas=perguntas_respostas,
+                               empresa_id=empresa_id,
+                               squad_id=squad_id,
+                               dados_xlsx=dumps(perguntas_respostas))
+
+    return render_template('enviar_forms_objetivos.html', empresas=empresas)
+
+@app.route('/get_squads/<int:empresa_id>')
+def get_squads(empresa_id):
+    squads = Squad.query.filter_by(empresa_id=empresa_id).all()
+    squads_list = [{"id": squad.id, "nome": squad.nome_squad} for squad in squads]
+    return jsonify(squads_list)
+
+
+@app.route('/salvar_objetivos', methods=['POST'])
+def salvar_objetivos():
+    empresa_id = request.form['empresa_id']
+    squad_id = request.form['squad_id']
+    dados_xlsx = loads(request.form['dados_xlsx'])
+
+    objetivo = FormsObjetivos(empresa_id=empresa_id, squad_id=squad_id, data=dados_xlsx) # Adapte conforme a sua implementação
+
+    db.session.add(objetivo)
+    db.session.commit()
+
+    return redirect(url_for('listar_forms_objetivos'))
+
+
+@app.route('/listar_forms_objetivos')
+def listar_forms_objetivos():
+    forms_objetivos = FormsObjetivos.query.all()  # Busque todos os FormObjetivos
+    return render_template('listar_forms_objetivos.html', forms_objetivos=forms_objetivos)
+
+
+@app.route('/deletar_forms_objetivo/<int:id>', methods=['POST'])
+def deletar_forms_objetivo(id):
+    forms_objetivo = FormsObjetivos.query.get(id)
+    if forms_objetivo:
+        db.session.delete(forms_objetivo)
+        db.session.commit()
+    return redirect(url_for('listar_forms_objetivos'))
+
+
+@app.route('/gerar_objetivos_prompt', methods=['GET', 'POST'])
+def gerar_objetivos_prompt():
+    if request.method == 'POST':
+        # Lógica para processar a seleção e texto aqui...
+        pass
+
+    empresas = Empresa.query.all() # Obter todas as empresas
+    return render_template('gerar_objetivos_prompt_chatgpt.html', empresas=empresas)
+
+
+
+@app.route('/get_forms_objetivos/<int:squad_id>')
+def get_forms_objetivos(squad_id):
+    forms_objetivos = FormsObjetivos.query.filter_by(squad_id=squad_id).all()
+    forms_list = [{"id": form.id, "data": form.data} for form in forms_objetivos]
+    return jsonify(forms_list)
+
+
+# Variável global para armazenar as mensagens entre as chamadas
+messages = []
+
+@app.route('/enviar_forms', methods=['POST'])
+def enviar_forms():
+    global messages
+
+    empresa_id = request.form['empresa_id']
+    squad_id = request.form['squad_id']
+
+    empresa = Empresa.query.filter_by(id=empresa_id).first()
+    squad = Squad.query.filter_by(id=squad_id).first()
+    forms_objetivos = FormsObjetivos.query.filter_by(squad_id=squad_id).all()
+
+    # Deletar objetivos antigos relacionados à empresa específica
+    objetivos_antigos = ObjetivoGeradoChatAprovacao.query.filter_by(empresa_id=empresa_id).all()
+    for objetivo in objetivos_antigos:
+        db.session.delete(objetivo)
+    db.session.commit()
+
+    # Formatar os detalhes dos formulários em uma string legível
+    forms_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
+
+    prompt = "Com base nas respostas fornecidas pelo squad " + squad.nome_squad + " da empresa " + empresa.nome_contato + ", quais objetivos podem ser sugeridos para alinhamento com as metas e missão? Responda apenas com o json com as seguinte chaves: objetivo, empresa, squad, id_objetivo. Formulário: " + forms_details
+
+    print("Pergunta completa:", prompt)
+
+    pergunta_id = str(uuid.uuid4())
+
+    resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
+
+    print("Resposta:", resposta)
+
+    # Obter a resposta como JSON
+    objetivos_json = json.loads(resposta)
+
+    # Adicionar cada objetivo ao banco de dados
+    for objetivo_data in objetivos_json:
+        objetivo = ObjetivoGeradoChatAprovacao(
+            objetivo=objetivo_data["objetivo"],
+            empresa_id=empresa.id,
+            squad_id=squad.id
+        )
+        db.session.add(objetivo)
+
+    db.session.commit()
+
+    return redirect('/')
+
+
+
+@app.route('/listar_sugestao_objetivos_gpt')
+def listar_sugestao_objetivos_gpt():
+    sugestoes = ObjetivoGeradoChatAprovacao.query.all()
+    return render_template('listar_sugestao_objetivos_gpt.html', sugestoes=sugestoes)
+
+
+@app.route('/deletar_objetivo_sugestao_gpt/<int:objetivo_id>', methods=['POST'])
+def deletar_objetivo_sugestao_gpt(objetivo_id):
+    objetivo = ObjetivoGeradoChatAprovacao.query.get_or_404(objetivo_id)
+    db.session.delete(objetivo)
+    db.session.commit()
+    return redirect(url_for('listar_sugestao_objetivos_gpt'))
+
+
+@app.route('/escolher_empresa_squad_feedback', methods=['GET', 'POST'])
+def escolher_empresa_squad_feedback():
+    empresas = Empresa.query.all()
+    if request.method == 'POST':
+        empresa_id = request.form['empresa']
+        squad_id = request.form['squad']
+        return redirect(url_for('listar_objetivos_gpt_feedback', empresa_id=empresa_id, squad_id=squad_id))
+    return render_template('escolher_empresa_squad_feedback.html', empresas=empresas)
+
+
+
+@app.route('/listar_objetivos_gpt_feedback/<int:empresa_id>/<int:squad_id>')
+def listar_objetivos_gpt_feedback(empresa_id, squad_id):
+    empresa = Empresa.query.get_or_404(empresa_id)
+    squad = Squad.query.get_or_404(squad_id)
+    objetivos = ObjetivoGeradoChatAprovacao.query.filter_by(empresa_id=empresa_id, squad_id=squad_id).all()
+
+    return render_template('listar_objetivos_gpt_feedback.html', objetivos=objetivos, empresa=empresa, squad=squad)
+
+
+
+@app.route('/enviar_forms_feedback', methods=['POST'])
+def enviar_forms_feedback():
+    global messages  # Certifique-se de que 'messages' esteja definido globalmente em algum lugar do seu código
+
+    empresa_id = request.form['empresa_id']
+    squad_id = request.form['squad_id']
+    feedback = request.form['feedback']
+
+    empresa = Empresa.query.filter_by(id=empresa_id).first()
+    squad = Squad.query.filter_by(id=squad_id).first()
+    objetivos = ObjetivoGeradoChatAprovacao.query.filter_by(empresa_id=empresa_id, squad_id=squad_id).all()
+    forms_objetivos = FormsObjetivos.query.filter_by(squad_id=squad_id).all()  # Obtém os detalhes dos formulários de objetivos
+
+    objetivos_str = ", ".join([json.dumps({"objetivo": obj.objetivo, "aprovado": obj.aprovado}) for obj in objetivos])
+    forms_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])  # Formata os detalhes dos formulários
+
+    prompt = f"Com base nos objetivos fornecidos {objetivos_str}, nos formulários: {forms_details}, e o feedback: {feedback} da empresa {empresa.nome_contato} e squad {squad.nome_squad}, quais novos objetivos podem ser sugeridos? Responda apenas com o json com as seguinte chaves: objetivo, empresa, squad, id_objetivo."
+    print("Pergunta completa:", prompt)
+
+    pergunta_id = str(uuid.uuid4())
+    resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
+    print("Resposta:", resposta)
+
+    ObjetivoGeradoChatAprovacao.query.filter_by(squad_id=squad_id).delete()
+    db.session.commit()
+
+    objetivos_novos = json.loads(resposta)
+    for objetivo_data in objetivos_novos:
+        objetivo = ObjetivoGeradoChatAprovacao(
+            objetivo=objetivo_data["objetivo"],
+            empresa_id=empresa.id,
+            squad_id=squad.id
+        )
+        db.session.add(objetivo)
+
+    db.session.commit()
+
+    return redirect('/')
+
+@app.route('/deletar_objetivo_sugestao_gpt/<int:objetivo_id>', methods=['POST'])
+def deletar_objetivo_sugestao_gpt_2(objetivo_id):
+    objetivo = FormsObjetivos.query.get_or_404(objetivo_id)
+    db.session.delete(objetivo)
+    db.session.commit()
+    return redirect(url_for('listar_objetivos_gpt_feedback'))
+
+
+from datetime import datetime, timedelta
+
+@app.route('/aprovar_objetivo_sugestao_gpt/<int:objetivo_id>', methods=['POST'])
+def aprovar_objetivo_sugestao_gpt_2(objetivo_id):
+    objetivo = ObjetivoGeradoChatAprovacao.query.get_or_404(objetivo_id)
+
+    data_inicio = datetime.now() # Data atual
+    data_fim = data_inicio + timedelta(weeks=12) # Data de início mais 3 meses
+
+    new_okr = OKR(
+        id_empresa=objetivo.empresa_id,
+        squad_id=objetivo.squad_id,
+        objetivo=objetivo.objetivo,
+        data_inicio=data_inicio,
+        data_fim=data_fim
+    )
+    db.session.add(new_okr)
+    db.session.delete(objetivo)
+    db.session.commit()
+
+    # Use os valores de empresa_id e squad_id do objetivo ao redirecionar
+    return redirect(url_for('listar_objetivos_gpt_feedback', empresa_id=objetivo.empresa_id, squad_id=objetivo.squad_id))
+
+
+@app.route('/gerar_krs_prompt')
+def gerar_krs_prompt():
+    empresas = Empresa.query.all()
+    return render_template('gerar_krs_prompt_gpt.html', empresas=empresas)
+
+
+@app.route('/get_okr_sugestao_chat/<int:squad_id>', methods=['GET'])
+def get_okr_sugestao_chat(squad_id):
+    okrs = OKR.query.filter_by(squad_id=squad_id).all()
+    okrs_list = []
+    for okr in okrs:
+        okr_dict = {
+            'id': okr.id,
+            'objetivo': okr.objetivo,
+            'data_inicio': okr.data_inicio.strftime('%Y-%m-%d'),
+            'data_fim': okr.data_fim.strftime('%Y-%m-%d')
+        }
+        okrs_list.append(okr_dict)
+    return jsonify(okrs_list)
+
+
+@app.route('/enviar_krs', methods=['POST'])
+def enviar_krs():
+    global messages
+
+    empresa_id = request.form['empresa_id']
+    squad_id = request.form['squad_id']
+
+    empresa = Empresa.query.filter_by(id=empresa_id).first()
+    squad = Squad.query.filter_by(id=squad_id).first()
+    forms_objetivos = FormsObjetivos.query.filter_by(squad_id=squad_id).all()
+
+    forms_objetivos_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
+
+    okrs = OKR.query.filter_by(squad_id=squad_id).all()
+    okrs_details = ", ".join([f"{okr.objetivo} (ID: {okr.id})" for okr in okrs])
+
+    prompt = ("Com base nas respostas fornecidas " + forms_objetivos_details + " pelo squad " + squad.nome_squad + " da empresa " + empresa.nome_contato + " e considerando os objetivos aprovados {" + okrs_details + "}, defina os Objetivos-Chave de Resultados (KRs) que se alinham com os objetivos e incluem indicadores mensuráveis. Cada KR e seu medidor correspondente devem ser expressos em uma única frase Faça os Krs de todos os objetivos. Formate a resposta como um JSON com as seguintes chaves: objetivo, empresa, squad, KR_1, KR_2, KR_3, MetaKR_1, MetaKR_2, MetaKR_3. Não adicione outras chaves além destas.")
+
+    print("Pergunta completa:", prompt)
+
+    pergunta_id = str(uuid.uuid4())
+
+    resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
+    resposta_corrigida = '[' + resposta.replace('}\n{', '},\n{') + ']'
+
+    try:
+        krs_list = json.loads(resposta_corrigida)
+        print("krs_list:", krs_list)
+    except json.JSONDecodeError as e:
+        print("JSONDecodeError:", e)
+        print("Resposta corrigida:", resposta_corrigida)
+        return redirect('/')
+
+    krs_list = krs_list[0]  # Adicionando esta linha para extrair a lista interna de dicionários
+
+    KrGeradoChatAprovacao.query.filter_by(empresa_id=empresa.id, squad_id=squad.id).delete()
+
+    for kr_data in krs_list:
+        objetivo = kr_data['objetivo']
+
+        for i in range(1, 4):  # Loop through the three KRs
+            descricao_KR = kr_data[f'KR_{i}']
+            meta_KR = kr_data[f'MetaKR_{i}']
+
+            kr = KrGeradoChatAprovacao(
+                objetivo=objetivo,
+                empresa_id=empresa.id,
+                squad_id=squad.id,
+                KR=descricao_KR,
+                meta=meta_KR
+            )
+            db.session.add(kr)
+
+    db.session.commit()
+
+    return redirect('/')
+
+@app.route('/listar_krs_sugestao_gpt')
+def listar_krs_sugestao_gpt():
+    krs_sugestoes = KrGeradoChatAprovacao.query.all()
+    return render_template('listar_sugestao_krs_gpt.html', sugestoes=krs_sugestoes)
+
+
+
+@app.route('/deletar_kr_sugestao_gpt/<int:kr_id>', methods=['POST'])
+def deletar_kr_sugestao_gpt(kr_id):
+    kr = KrGeradoChatAprovacao.query.get_or_404(kr_id)
+    db.session.delete(kr)
+    db.session.commit()
+    return redirect(url_for('listar_krs_sugestao_gpt'))
+
+
+@app.route('/escolher_empresa_squad_feedback_kr')
+def escolher_empresa_squad_feedback_kr():
+    empresas = Empresa.query.all() # Carregar suas empresas aqui
+    return render_template('escolher_empresa_squad_KR_feedback.html', empresas=empresas)
+
+@app.route('/enviar_krs_feedback', methods=['POST'])
+def enviar_krs_feedback():
+    empresa_id = request.form['empresa']
+    squad_id = request.form['squad']
+    return redirect(url_for('listar_sugestoes_kr_feedback_gpt', empresa_id=empresa_id, squad_id=squad_id))
+
+
+@app.route('/listar_sugestoes_kr_feedback_gpt/<int:empresa_id>/<int:squad_id>', methods=['GET', 'POST'])
+def listar_sugestoes_kr_feedback_gpt(empresa_id, squad_id):
+    empresa = Empresa.query.get_or_404(empresa_id)
+    squad = Squad.query.get_or_404(squad_id)
+    sugestoes = KrGeradoChatAprovacao.query.filter_by(empresa_id=empresa_id, squad_id=squad_id).all() # Mudar aqui
+
+    # Instrução de depuração para imprimir a primeira sugestão
+    if sugestoes:
+        print(sugestoes[0].__dict__)
+
+    if request.method == 'POST':
+        feedback = request.form['feedback']
+        return redirect(url_for('enviar_krs_feedback', empresa_id=empresa_id, squad_id=squad_id, feedback=feedback))
+
+    return render_template('listar_sugestao_kr_feedback_gpt.html', sugestoes=sugestoes, empresa_id=empresa_id, squad_id=squad_id)
+
+
+
+@app.route('/enviar_krs_feedback_chat_gpt/<empresa_id>/<squad_id>', methods=['POST'])
+def enviar_krs_feedback_chat_gpt(empresa_id, squad_id):
+    global messages
+    feedback = request.form['feedback']
+
+    empresa = Empresa.query.filter_by(id=empresa_id).first()
+    squad = Squad.query.filter_by(id=squad_id).first()
+
+    krs = KrGeradoChatAprovacao.query.filter_by(empresa_id=empresa_id, squad_id=squad_id).all()
+    okrs = OKR.query.filter_by(squad_id=squad_id).all()
+
+    krs_details = ', '.join([f"{kr.KR} (Meta: {kr.meta})" for kr in krs])
+    objetivos_details = ", ".join([f"{objetivo.objetivo} (ID: {objetivo.id})" for objetivo in okrs])
+
+    prompt = (f"Com base no feedback fornecido [{feedback}], os KR já gerados [{krs_details}], os objetivos [{objetivos_details}] e as respostas fornecidas pelo squad {squad.nome_squad} da empresa {empresa.nome_contato}, defina os Objetivos-Chave de Resultados (KRs) que se alinham com os objetivos e incluem indicadores mensuráveis. Cada KR e seu medidor correspondente devem ser expressos em uma única frase Faça os Krs de todos os objetivos. Formate a resposta como um JSON com as seguintes chaves: objetivo, empresa, squad, KR_1, KR_2, KR_3, MetaKR_1, MetaKR_2, MetaKR_3. Não adicione outras chaves além destas.")
+
+    print("Pergunta completa:", prompt)
+
+    pergunta_id = str(uuid.uuid4())
+
+    resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
+    resposta_corrigida = '[' + resposta.replace('}\n{', '},\n{') + ']'
+
+    try:
+        krs_list = json.loads(resposta_corrigida)
+        print("krs_list:", krs_list)
+    except json.JSONDecodeError as e:
+        print("JSONDecodeError:", e)
+        print("Resposta corrigida:", resposta_corrigida)
+        return redirect('/')
+
+    KrGeradoChatAprovacao.query.filter_by(empresa_id=empresa.id, squad_id=squad.id).delete()
+
+
+
+    # Remova o índice [0] para iterar corretamente através da lista de dicionários
+    for kr_list in krs_list:
+        objetivo = kr_list['objetivo']
+
+        for i in range(1, 4):  # Loop through the three KRs
+            descricao_KR = kr_list[f'KR_{i}']
+            meta_KR = kr_list[f'MetaKR_{i}']
+
+            kr = KrGeradoChatAprovacao(
+                objetivo=objetivo,
+                empresa_id=empresa.id,
+                squad_id=squad.id,
+                KR=descricao_KR,
+                meta=meta_KR
+            )
+            db.session.add(kr)
+
+    db.session.commit()
+
+    return redirect('/')
+
+
+@app.route('/aprovar_kr_sugestao_gpt/<int:kr_id>', methods=['POST'])
+def aprovar_kr_sugestao_gpt(kr_id):
+    sugestao = db.session.get(KrGeradoChatAprovacao, kr_id) # Uso do método get
+
+    # Encontrar o OKR relacionado pelo objetivo
+    okr_relacionado = OKR.query.filter_by(objetivo=sugestao.objetivo).first()
+    if not okr_relacionado:
+        # Adicione aqui o código para lidar com o caso em que o OKR relacionado não é encontrado
+        return redirect(url_for('outro_endpoint')) # Substitua pelo endpoint correto, se aplicável
+
+    data_inclusao = datetime.utcnow()  # a data de inclusão pode ser agora
+    data_final = data_inclusao + timedelta(weeks=12)  # 3 meses depois
+
+    novo_kr = KR(id_empresa=okr_relacionado.id_empresa,
+                 id_okr=okr_relacionado.id,
+                 squad_id=sugestao.squad_id,  # Pegando squad_id diretamente da sugestão
+                 meta=sugestao.meta,
+                 texto=sugestao.KR,
+                 data_inclusao=data_inclusao)
+
+    db.session.add(novo_kr)
+
+    # Deletar a sugestão
+    db.session.delete(sugestao)
+
+    db.session.commit()
+
+    # Redirecionar para a URL da função listar_sugestoes_kr_feedback_gpt
+    return redirect(url_for('listar_sugestoes_kr_feedback_gpt', empresa_id=sugestao.empresa_id, squad_id=sugestao.squad_id))
+
+@app.route('/gerar_macro_acao_sugestao')
+def gerar_macro_acao_sugestao():
+    empresas = Empresa.query.all()  # Obtenha todas as empresas
+    return render_template('gerar_macro_acao_gpt.html', empresas=empresas)
+
+
+@app.route('/get_squads_sugestao_gpt/<int:empresa_id>')
+def get_squads_sugestao_gpt(empresa_id):
+    squads = Squad.query.filter_by(empresa_id=empresa_id).all()
+    squads_list = [{"id": squad.id, "nome_squad": squad.nome_squad} for squad in squads]
+    return jsonify(squads_list)
+
+
+
+
+
+@app.route('/get_krs_prompt_gpt/<int:squad_id>')
+def get_krs_prompt_gpt(squad_id):
+    forms = FormsObjetivos.query.filter_by(squad_id=squad_id).first()
+    krs = KR.query.filter_by(squad_id=squad_id).all()
+
+    objectives_dict = defaultdict(list)
+
+    for kr in krs:
+        okr = OKR.query.get(kr.id_okr)
+        objectives_dict[okr.objetivo].append({
+            "id": kr.id,
+            "id_empresa": kr.id_empresa,
+            "id_okr": kr.id_okr,
+            "squad_id": kr.squad_id,
+            "meta": kr.meta,
+            "texto": kr.texto,
+            "data_inclusao": kr.data_inclusao.strftime('%Y-%m-%d %H:%M:%S'),
+            "data_final": kr.data_final.strftime('%Y-%m-%d %H:%M:%S') if kr.data_final else None
+        })
+
+    objectives_list = [{"objective": objective, "krs": krs} for objective, krs in objectives_dict.items()]
+
+    result = {
+        "forms": forms.data if forms else None, # Aqui você pode ajustar de acordo com o formato da sua coluna data em FormsObjetivos
+        "objectives": objectives_list
+    }
+
+    return jsonify(result)
+
+
+
+
+
+@app.route('/gerar_macro_acoes_prompt_gpt', methods=['POST'])
+def gerar_macro_acoes_prompt_gpt():
+    empresa_id = request.form['empresa_id']
+    squad_id = request.form['squad_id']
+
+    empresa = Empresa.query.filter_by(id=empresa_id).first()
+    squad = Squad.query.filter_by(id=squad_id).first()
+    forms_objetivos = FormsObjetivos.query.filter_by(squad_id=squad_id).all()
+
+    forms_objetivos_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
+
+    okrs = OKR.query.filter_by(squad_id=squad_id).all()
+    krs = KR.query.filter_by(squad_id=squad_id).all()
+
+    okrs_details = ", ".join([f"{okr.objetivo} (ID: {okr.id})" for okr in okrs])
+    krs_details = ", ".join([f"{kr.texto} (Meta: {kr.meta})" for kr in krs])
+
+    prompt = ("Com base nas respostas fornecidas " + forms_objetivos_details + " pelo squad " + squad.nome_squad + " da empresa " + empresa.nome_contato + " e considerando os objetivos e KR's aprovados {" + okrs_details + ", " + krs_details + "}, defina macro ações que se alinham com os objetivos e KR's primordiais para o atingimento dos indicadores. Cada macro ação devem ser expressos em uma única frase. Faça as macro ações para todos os objetivos e KR's. Responda com o nome do KR e não com o ID. Responda com KR somente com o numero do ID. Formate a resposta como um JSON com as seguintes chaves: empresa, squad, objetivo, kr, macro_acao. Não adicione outras chaves além destas.")
+
+    print("Pergunta completa:", prompt)
+
+    pergunta_id = str(uuid.uuid4())
+    messages = []
+
+    resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
+    print("Resposta completa:", resposta)
+
+    resposta_json = json.loads(resposta)
+
+    novas_macro_acoes = []
+
+    for item in resposta_json:
+        objetivo_name_with_id = item["objetivo"]
+        objetivo_name = re.sub(r'\s*\(ID:\s*\d+\)\s*$', '', objetivo_name_with_id)
+        objetivo = OKR.query.filter_by(objetivo=objetivo_name, squad_id=squad_id).first()
+        if objetivo is None:
+            print(f"No matching Objective found for name '{objetivo_name}' and squad_id '{squad_id}'")
+            continue
+        objetivo_id = objetivo.id
+
+        kr_text = item["kr"]
+
+        # Aqui é onde buscamos o KR pelo texto e não pelo ID
+        kr = KR.query.filter_by(texto=kr_text, squad_id=squad_id).first()
+        if kr is None:
+            print(f"No matching KR found for text '{kr_text}' and squad_id '{squad_id}'")
+            continue
+        kr_id = kr.id
+
+        macro_acao_text = item["macro_acao"]
+
+        macro_acao = MacroAcaoGeradoChatAprovacao(
+            empresa_id=empresa_id,
+            squad_id=squad_id,
+            objetivo_id=objetivo_id,
+            kr_id=kr_id,
+            macro_acao=macro_acao_text
+        )
+
+        novas_macro_acoes.append(macro_acao)
+
+    for macro_acao in novas_macro_acoes:
+        db.session.add(macro_acao)
+
+    db.session.commit()
+
+    return redirect(url_for('listar_sugestao_macro_acao_gpt'))
+
+
+
+
+@app.route('/listar_sugestao_macro_acao_gpt')
+def listar_sugestao_macro_acao_gpt():
+    sugestoes = db.session.query(
+        MacroAcaoGeradoChatAprovacao,
+        Empresa.nome_contato.label('empresa_nome_contato'),
+        Squad.nome_squad.label('squad_nome'),
+        OKR.objetivo.label('objetivo_nome'),
+        KR.texto.label('kr_nome')
+    ).join(
+        Empresa, MacroAcaoGeradoChatAprovacao.empresa_id == Empresa.id
+    ).join(
+        Squad, MacroAcaoGeradoChatAprovacao.squad_id == Squad.id
+    ).join(
+        OKR, MacroAcaoGeradoChatAprovacao.objetivo_id == OKR.id
+    ).join(
+        KR, MacroAcaoGeradoChatAprovacao.kr_id == KR.id
+    ).all()
+    return render_template('listar_sugestao_macro_acao_gpt.html', sugestoes=sugestoes)
+
+
+
+@app.route('/deletar_macro_acao_gpt/<int:id>', methods=['POST'])
+def deletar_macro_acao_gpt_prompt_gpt(id):
+    macro_acao = MacroAcaoGeradoChatAprovacao.query.get_or_404(id)
+    db.session.delete(macro_acao)
+    db.session.commit()
+    return redirect(url_for('listar_sugestao_macro_acao_gpt'))
+
+
+@app.route('/escolher_empresa_macro_acao_feedback', methods=['GET', 'POST'], endpoint='escolher_empresa_macro_acao_feedback')
+def escolher_empresa_squad():
+    if request.method == 'POST':
+        empresa_id = request.form['empresa']
+        squad_id = request.form['squad']
+        return redirect(url_for('listar_sugestao_macro_acao_feedback_gpt', empresa_id=empresa_id, squad_id=squad_id)) # nome da função atualizado
+
+    empresas = Empresa.query.all()
+    return render_template('escolher_empresa_macro_acao_feedback.html', empresas=empresas)
+
+
+@app.route('/listar_sugestao_macro_acao_feedback_gpt/<int:empresa_id>/<int:squad_id>', methods=['GET'])
+def listar_sugestao_macro_acao_feedback_gpt(empresa_id, squad_id):
+    sugestoes = db.session.query(MacroAcaoGeradoChatAprovacao).filter_by(empresa_id=empresa_id, squad_id=squad_id).all()
+
+    sugestoes_formatadas = []
+    for sugestao in sugestoes:
+        sugestoes_formatadas.append({
+            'id': sugestao.id,  # Adicionar esta linha
+            'empresa_nome_contato': sugestao.empresa.nome_contato,
+            'squad_nome': sugestao.squad.nome_squad,
+            'objetivo_nome': sugestao.okr.objetivo,
+            # Certifique-se de que 'objetivo' é o atributo correto na classe OKR
+            'kr_nome': sugestao.kr.texto,  # Atributo atualizado para 'texto'
+            'macro_acao': sugestao.macro_acao,
+        })
+
+    return render_template('listar_sugestao_macro_acao_feedback_gpt.html', sugestoes=sugestoes_formatadas, empresa_id=empresa_id, squad_id=squad_id)
+
+
+
+@app.route('/caminho/para/gerar_macro_acoes_prompt_gpt_feedback', methods=['POST'])
+def gerar_macro_acoes_prompt_gpt_feedback():
+    data = request.json
+    feedback = data['feedback']
+    empresa_id = data['empresa_id']
+    squad_id = data['squad_id']
+
+    empresa = Empresa.query.filter_by(id=empresa_id).first()
+    squad = Squad.query.filter_by(id=squad_id).first()
+    forms_objetivos = FormsObjetivos.query.filter_by(squad_id=squad_id).all()
+    forms_objetivos_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
+
+    okrs = OKR.query.filter_by(squad_id=squad_id).all()
+    krs = KR.query.filter_by(squad_id=squad_id).all()
+    okrs_details = ", ".join([f"{okr.objetivo} (ID: {okr.id})" for okr in okrs])
+    krs_details = ", ".join([f"{kr.texto} (Meta: {kr.meta})" for kr in krs])
+
+    macro_acoes = MacroAcaoGeradoChatAprovacao.query.filter_by(empresa_id=empresa_id, squad_id=squad_id).all()
+    macro_acoes_details = ", ".join([f"{macro_acao.macro_acao} (ID: {macro_acao.id})" for macro_acao in macro_acoes])
+
+    prompt = (f"Com esse feedback '{feedback}', com essa sugestão de macro ações '{macro_acoes_details}', com essas respostas fornecidas "
+              f"{forms_objetivos_details} pelo squad {squad.nome_squad} da empresa {empresa.nome_contato} e considerando os objetivos e KR's aprovados "
+              f"{{{okrs_details}, {krs_details}}}, defina macro ações que se alinham com os objetivos e KR's primordiais para o atingimento dos indicadores. "
+              f"Cada macro ação devem ser expressos em uma única frase. Faça as macro ações para todos os objetivos e KR's. Formate a resposta como um JSON com as seguintes chaves: empresa, squad, objetivo, kr, macro_acao, meta. Não adicione outras chaves além destas.")
+
+    print("Pergunta completa:", prompt)
+
+    pergunta_id = str(uuid.uuid4())
+    messages = []
+
+    resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
+    print("Resposta completa:", resposta)
+
+    resposta_json = json.loads(resposta)
+
+    novas_macro_acoes = []
+    for item in resposta_json:
+        objetivo_name = item["objetivo"]
+        objetivo = OKR.query.filter_by(objetivo=objetivo_name, squad_id=squad_id).first()
+        if objetivo is None:
+            print(f"No matching Objective found for name '{objetivo_name}' and squad_id '{squad_id}'")
+            continue
+        objetivo_id = objetivo.id
+
+        kr_name = item["kr"]
+        kr = KR.query.filter_by(texto=kr_name, squad_id=squad_id).first()
+        if kr is None:
+            print(f"No matching KR found for name '{kr_name}' and squad_id '{squad_id}'")
+            continue
+        kr_id = kr.id
+
+        macro_acao_text = item["macro_acao"]
+
+        macro_acao = MacroAcaoGeradoChatAprovacao(
+            empresa_id=empresa_id,
+            squad_id=squad_id,
+            objetivo_id=objetivo_id,
+            kr_id=kr_id,
+            macro_acao=macro_acao_text
+        )
+
+        novas_macro_acoes.append(macro_acao)
+
+    try:
+        # Inicia uma transação
+        db.session.begin_nested()
+
+        # Deleta as macro ações antigas
+        MacroAcaoGeradoChatAprovacao.query.filter_by(empresa_id=empresa_id, squad_id=squad_id).delete()
+
+        # Adiciona as novas macro ações
+        for macro_acao in novas_macro_acoes:
+            db.session.add(macro_acao)
+
+        # Tenta confirmar as alterações
+        db.session.commit()
+    except IntegrityError:
+        # Se algo der errado, faz rollback
+        db.session.rollback()
+        # Você pode adicionar algum código de log aqui para entender o que deu errado
+        print("Falha ao atualizar as macro ações.")
+        # Retornar uma resposta de erro apropriada ao cliente, se desejado
+        return "Erro ao atualizar", 400
+
+    return redirect(url_for('listar_sugestao_macro_acao_gpt'))
+
+
+@app.route('/aprovar_macro_acao_gpt/<int:id>', methods=['POST'])
+def aprovar_macro_acao_gpt(id):
+    # Recuperando a sugestão
+    sugestao = MacroAcaoGeradoChatAprovacao.query.get_or_404(id)
+
+    # Diagnóstico: Verificando o valor de squad_id
+    print("Squad ID:", sugestao.squad_id)
+
+    # Verificando se todos os campos necessários estão presentes
+    if not (sugestao.macro_acao and sugestao.kr_id and sugestao.okr and sugestao.squad and sugestao.empresa):
+        logging.error(f"Dados inválidos na sugestão de id {id}")
+        return jsonify(success=False, message="Dados inválidos na sugestão"), 400
+
+    try:
+        # Refresh para garantir que as relações estejam atualizadas
+        db.session.refresh(sugestao)
+
+        # Criando a aprovação
+        aprovacao = MacroAcao(
+            texto=sugestao.macro_acao,
+            aprovada=True,
+            data_inclusao=datetime.utcnow(),
+            kr_id=sugestao.kr_id,
+            objetivo=sugestao.okr.objetivo,
+            squad_id=sugestao.squad_id,
+            objetivo_id=sugestao.objetivo_id,
+            empresa=sugestao.empresa.nome_contato if sugestao.empresa else None,
+            empresa_id=sugestao.empresa_id
+        )
+
+        # Adicionando a aprovação e removendo a sugestão
+        db.session.add(aprovacao)
+        db.session.delete(sugestao)
+        db.session.commit()
+    except Exception as e:
+        logging.error(f"Erro ao atualizar o banco de dados: {e}")
+        return jsonify(success=False, message=str(e)), 500
+
+    return jsonify(success=True), 200
+
+
+@app.route('/deletar_macro_acao_gerado_chat_aprovacao/<int:id>', methods=['DELETE'])
+def deletar_macro_acao_gerado_chat_aprovacao(id):
+    macro_acao = MacroAcaoGeradoChatAprovacao.query.get_or_404(id)
+
+    db.session.delete(macro_acao)
+    db.session.commit()
+
+    return jsonify(success=True), 200
+
+
+@app.route('/escolher_empresa_tarefa')
+def escolher_empresa_tarefa():
+    empresas = Empresa.query.all()
+    squads = Squad.query.all() # ou vazio se quiser carregar dinamicamente
+    return render_template('escolher_empresa_tarefa.html', empresas=empresas, squads=squads)
+
+
+
+def serialize_forms_objetivos(obj):
+    return {
+        'id': obj.id,
+        # Adicione outros atributos conforme necessário
+    }
+
+def serialize_okr(obj):
+    return {
+        'id': obj.id,
+        # Adicione outros atributos conforme necessário
+    }
+
+def serialize_kr(obj):
+    return {
+        'id': obj.id,
+        # Adicione outros atributos conforme necessário
+    }
+
+def serialize_macro_acoes(obj):
+    return {
+        'id': obj.id,
+        # Adicione outros atributos conforme necessário
+    }
+
+
+@app.route('/get_macroacoes/<int:empresa_id>/<int:squad_id>', methods=['GET'])
+def get_macroacoes(empresa_id, squad_id):
+    empresa = Empresa.query.get_or_404(empresa_id)
+    squad = Squad.query.get_or_404(squad_id)
+    forms_objetivos = FormsObjetivos.query.filter_by(empresa_id=empresa_id, squad_id=squad_id).all()
+    okrs = OKR.query.filter_by(id_empresa=empresa_id, squad_id=squad_id).all()
+
+    resultado_okrs = []
+    for okr in okrs:
+        krs = KR.query.filter_by(id_okr=okr.id).all()
+        resultado_krs = []
+        for kr in krs:
+            macro_acoes = MacroAcao.query.filter_by(kr_id=kr.id).all()
+            resultado_macro_acoes = [ma.texto for ma in macro_acoes]
+            resultado_krs.append({
+                'texto': kr.texto,
+                'meta': kr.meta,
+                'macro_acoes': resultado_macro_acoes
+            })
+        resultado_okrs.append({
+            'objetivo': okr.objetivo,
+            'krs': resultado_krs
+        })
+
+    return jsonify({
+        'empresa': {
+            'id': empresa.id,
+            'nome': empresa.nome_contato  # Adicione outros atributos da empresa conforme necessário
+        },
+        'squad': {
+            'id': squad.id,
+            'nome_squad': squad.nome_squad  # Adicione outros atributos do squad conforme necessário
+        },
+        'forms_objetivos': [obj.data for obj in forms_objetivos],  # adicionado
+        'okrs': resultado_okrs
+    })
+
+
+
+@app.route('/gerar_tarefas_metas_semanais', methods=['POST'])
+def gerar_tarefas_metas_semanais():
+    empresa_id = request.form['empresa_id']
+    squad_id = request.form['squad_id']
+
+    empresa = Empresa.query.filter_by(id=empresa_id).first()
+    squad = Squad.query.filter_by(id=squad_id).first()
+    forms_objetivos = FormsObjetivos.query.filter_by(squad_id=squad_id).all()
+
+    forms_objetivos_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
+    okrs = OKR.query.filter_by(squad_id=squad_id).all()
+    krs = KR.query.filter_by(squad_id=squad_id).all()
+
+    okrs_details = ", ".join([f"{okr.objetivo} (ID: {okr.id})" for okr in okrs])
+    krs_details = ", ".join([f"{kr.texto} (Meta: {kr.meta})" for kr in krs])
+    macro_acoes_details = ", ".join([ma.texto for ma in MacroAcao.query.filter_by(squad_id=squad_id).all()])
+
+    prompt = (f"Com essas macro ações '{macro_acoes_details}', com essas respostas fornecidas "
+              f"{forms_objetivos_details} pelo squad {squad.nome_squad} da empresa {empresa.nome_contato} e considerando os objetivos e KR's aprovados "
+              f"{{{okrs_details}, {krs_details}}}, defina tarefas e metas semanais que se alinham com os objetivos, KR's e macro ações primordiais para o atingimento dos indicadores. "
+              f"Cada tarefa e meta semanal deve ser expressa em uma única frase. Formate a resposta como um JSON com as seguintes chaves: tarefa, meta semanal, squad, empresa. Não adicione outras chaves além destas.")
+
+    print("Pergunta completa:", prompt)
+
+    pergunta_id = str(uuid.uuid4())
+    messages = []
+
+    resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
+    print("Resposta completa:", resposta)
+
+    # Interpretar a resposta como JSON
+    tarefas_metas_semanais_list = json.loads(resposta)
+
+    # Iterar sobre os objetos na resposta e criar uma nova instância do modelo para cada um
+    for tarefa_metas_semanais_data in tarefas_metas_semanais_list:
+        tarefa = tarefa_metas_semanais_data.get('tarefa', None)
+        meta_semanal = tarefa_metas_semanais_data.get('meta_semanal', None)  # Corrigido aqui
+
+        if not all([tarefa, meta_semanal]):  # Checa se alguma chave não está presente ou tem valor None
+            print(f"Dados incompletos ou ausentes no registro: {tarefa_metas_semanais_data}")
+            continue
+
+        tarefa_metas_semanais = TarefasMetasSemanais(
+            empresa=empresa.nome_contato,  # Usamos o nome da empresa consultada anteriormente
+            squad_name=squad.nome_squad,  # Usamos o nome do squad consultado anteriormente
+            squad_id=squad_id,
+            tarefa=tarefa,
+            meta_semanal=meta_semanal
+        )
+        db.session.add(tarefa_metas_semanais)
+
+    db.session.commit()  # Não esqueça de fazer o commit das mudanças!
+
+    return redirect(url_for('listar_tarefas_metas_semanais'))
+
+
+@app.route('/listar_tarefas_metas_semanais')
+def listar_tarefas_metas_semanais():
+    tarefas_metas_semanais = TarefasMetasSemanais.query.all()
+    return render_template('listar_tarefas_metas_semanais.html', tarefas=tarefas_metas_semanais)
+
+@app.route('/deletar_tarefa_metas_semanais/<int:id>', methods=['POST'])
+def deletar_tarefa_metas_semanais(id):
+    tarefa_metas_semanais = TarefasMetasSemanais.query.get_or_404(id)
+    db.session.delete(tarefa_metas_semanais)
+    db.session.commit()
+    return redirect(url_for('listar_tarefas_metas_semanais'))
+
 
 
 

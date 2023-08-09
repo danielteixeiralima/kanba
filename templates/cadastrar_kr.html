@@ -17,6 +17,12 @@
                                 </select>
                             </div>
                             <div class="form-group">
+                                <label for="squad" style="color: black;">Squad:</label>
+                                <select class="form-control" id="squad" name="squad" required>
+                                    <!-- Os Squads serão preenchidos dinamicamente pelo JavaScript após a seleção de uma Empresa -->
+                                </select>
+                            </div>
+                            <div class="form-group">
                                 <label for="objetivo" style="color: black;">Objetivo:</label>
                                 <select class="form-control" id="objetivo" name="objetivo" required>
                                     <!-- Os objetivos serão preenchidos dinamicamente pelo JavaScript -->
@@ -33,5 +39,37 @@
             </div>
         </div>
     </div>
-    <script src="{{ url_for('static', filename='main.js') }}"></script>
+    <script>
+        document.getElementById("empresa").addEventListener("change", function() {
+            let empresaId = this.value;
+            let squadDropdown = document.getElementById("squad");
+            squadDropdown.innerHTML = "";
+
+            fetch('/get_squads/' + empresaId)
+                .then(response => response.json())
+                .then(data => {
+                    data.forEach(squad => {
+                        let option = new Option(squad.nome, squad.id);
+                        squadDropdown.add(option);
+                    });
+                });
+        });
+
+        document.getElementById("squad").addEventListener("change", function() {
+            let squadId = this.value;
+            let okrDropdown = document.getElementById("objetivo");
+            okrDropdown.innerHTML = "";
+
+            fetch('/get_okrs_by_squad/' + squadId)
+                .then(response => response.json())
+                .then(data => {
+                    data.forEach(okr => {
+                        let option = new Option(okr.objetivo, okr.id);
+                        okrDropdown.add(option);
+                    });
+                });
+        });
+
+    </script>
+
 {% endblock %}

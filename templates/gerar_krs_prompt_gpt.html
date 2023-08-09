@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .custom-select {
+        color: black; /* Define a cor do texto dentro do dropdown */
+        background-color: white; /* Define a cor de fundo do dropdown */
+    }
+    .custom-select option {
+        color: black; /* Cor do texto para as opções dentro do dropdown */
+    }
+</style>
+    <div class="container">
+        <div class="row justify-content-center align-items-center" style="height:100vh">
+            <div class="col-4">
+                <h1 class="text-center mb-4 text-white">Gerar KR's</h1>
+                <div class="card" style="background-color: #333;">
+                    <form action="/enviar_krs" method="post">
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label for="empresa" style="color: black;">Selecionar Empresa:</label>
+                                <select class="form-control custom-select" id="empresa" name="empresa_id" required onchange="loadSquads()">
+                                    {% for empresa in empresas %}
+                                        <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="squad" style="color: black;">Selecionar Squad:</label>
+                                <select class="form-control custom-select" id="squad" name="squad_id" required onchange="loadFormsAndOKRs()">
+                                    <!-- Squads serão carregados aqui -->
+                                </select>
+                            </div>
+                            <div id="forms-objetivos-container">
+                                <!-- Forms Objetivos serão exibidos aqui -->
+                            </div>
+                            <div id="okrs-container">
+                                <!-- OKRs serão exibidos aqui -->
+                            </div>
+                            <button type="submit" class="btn btn-primary">Enviar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        function loadSquads() {
+            var empresa_id = document.getElementById('empresa').value;
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '/get_squads/' + empresa_id, true);
+            xhr.responseType = 'json';
+            xhr.onload = function() {
+                var status = xhr.status;
+                if (status === 200) {
+                    var squads = xhr.response;
+                    var select = document.getElementById('squad');
+                    select.innerHTML = '';
+                    squads.forEach(function(squad) {
+                        var option = document.createElement('option');
+                        option.value = squad.id;
+                        option.textContent = squad.nome;
+                        select.appendChild(option);
+                    });
+                    if (squads.length === 1) {
+                        loadFormsAndOKRs(); // Carrega os formulários e OKRs se houver apenas um squad
+                    }
+                }
+            };
+            xhr.send();
+        }
+
+        function loadFormsAndOKRs() {
+            loadFormsObjetivos();
+            loadOKRs();
+        }
+
+        function loadFormsObjetivos() {
+            var squad_id = document.getElementById('squad').value;
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '/get_forms_objetivos/' + squad_id, true);
+            xhr.responseType = 'json';
+            xhr.onload = function() {
+                var status = xhr.status;
+                if (status === 200) {
+                    var formsObjetivos = xhr.response;
+                    var container = document.getElementById('forms-objetivos-container');
+                    container.innerHTML = ''; // Limpa o conteúdo anterior
+                    formsObjetivos.forEach(function(forms) {
+                        var div = document.createElement('div');
+                        div.textContent = JSON.stringify(forms); // Exemplo simples de exibição
+                        container.appendChild(div);
+                    });
+                }
+            };
+            xhr.send();
+        }
+
+        function loadOKRs() {
+            var squad_id = document.getElementById('squad').value;
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '/get_okr_sugestao_chat/' + squad_id, true);
+            xhr.responseType = 'json';
+            xhr.onload = function() {
+                var status = xhr.status;
+                if (status === 200) {
+                    var okrs = xhr.response;
+                    var container = document.getElementById('okrs-container');
+                    container.innerHTML = ''; // Limpa o conteúdo anterior
+                    okrs.forEach(function(okr) {
+                        var div = document.createElement('div');
+                        div.textContent = okr.objetivo; // Exibição do OKR
+                        container.appendChild(div);
+                    });
+                }
+            };
+            xhr.send();
+        }
+
+        // Carrega os squads quando a página é carregada
+        window.onload = function() {
+            loadSquads();
+        }
+    </script>
+{% endblock %}

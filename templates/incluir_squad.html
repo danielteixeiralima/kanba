@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container">
+        <div class="row justify-content-center align-items-center" style="height:100vh">
+            <div class="col-4">
+                <h1 class="text-center mb-4 text-white">Incluir Squad</h1>
+                <div class="card" style="background-color: #333;">
+                    <div class="card-body">
+                        <form class="form-style" action="{{ url_for('incluir_squad') }}" method="post">
+                            <div class="form-group">
+                                <label for="empresa" style="color: black;">Empresa:</label>
+                                <select class="form-control" name="empresa" id="empresa" required onchange="updateUsuarios()">
+                                    {% for empresa in empresas %}
+                                        <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="nome_squad" style="color: black;">Nome do Squad:</label>
+                                <input type="text" class="form-control" id="nome_squad" name="nome_squad" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="usuarios" style="color: black;">Usuários do Squad:</label>
+                                <select class="form-control" name="usuarios" id="usuarios" multiple required>
+                                    <!-- Opções de usuários vinculados à empresa selecionada serão preenchidas pelo JavaScript -->
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="data_inicio" style="color: black;">Data de Início:</label>
+                                <input type="date" class="form-control" id="data_inicio" name="data_inicio" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="data_fim" style="color: black;">Data Fim:</label>
+                                <input type="date" class="form-control" id="data_fim" name="data_fim">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-block">Incluir Squad</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        var usuariosPorEmpresa = {
+            {% for empresa in empresas %}
+                "{{ empresa.id }}": [
+                    {% for usuario in usuarios if usuario.id_empresa == empresa.id %}
+                        {"id": "{{ usuario.id }}", "nome": "{{ usuario.nome }}"},
+                    {% endfor %}
+                ],
+            {% endfor %}
+        };
+
+        function updateUsuarios() {
+            var empresaId = document.getElementById('empresa').value;
+            var usuariosSelect = document.getElementById('usuarios');
+            usuariosSelect.innerHTML = "";
+
+            var usuarios = usuariosPorEmpresa[empresaId] || [];
+            usuarios.forEach(function(usuario) {
+                var option = document.createElement('option');
+                option.value = usuario.id;
+                option.text = usuario.nome;
+                usuariosSelect.appendChild(option);
+            });
+        }
+
+        // Chama a função para preencher o dropdown de usuários quando a página é carregada
+        window.onload = updateUsuarios;
+    </script>
+{% endblock %}

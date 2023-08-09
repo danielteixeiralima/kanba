@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Lista de Forms Objetivos</h1>
+    <a href="{{ url_for('forms_objetivo') }}" class="btn btn-success">Incluir Novo Form Objetivo</a>
+    <table class="styled-table">
+        <thead>
+            <tr>
+                <th>Nome do Contato da Empresa</th>
+                <th>Nome do Squad</th>
+                <th>Data</th>
+                <th>Ação</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for forms_objetivo in forms_objetivos %}
+                <tr>
+                    <td>{{ forms_objetivo.empresa.nome_contato }}</td>
+                    <td>{{ forms_objetivo.squad.nome_squad }}</td>
+                    <td>{{ forms_objetivo.data | tojson }}</td>
+                    <td>
+                        <button type="button" class="btn btn-danger" data-toggle="modal" data-target="#deleteModal" data-id="{{ forms_objetivo.id }}">Deletar</button>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" role="dialog" aria-labelledby="deleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteModalLabel">Deletar Form Objetivo</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <form id="deleteForm" method="post">
+                    <div class="modal-body" id="deleteContent">
+                        Tem certeza de que deseja deletar este Form Objetivo?
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger" id="deleteButton">Deletar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script>
+        $('#deleteModal').on('show.bs.modal', function (event) {
+            var button = $(event.relatedTarget);
+            var id = button.data('id');
+            var action = "{{ url_for('deletar_forms_objetivo', id=0) }}".replace('0', id);
+            $('#deleteForm').attr('action', action);
+        });
+    </script>
+{% endblock %}

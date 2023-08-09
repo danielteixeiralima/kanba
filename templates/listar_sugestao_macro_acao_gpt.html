@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Listar Sugestões de Macro Ações</h1>
+    <table class="styled-table">
+        <thead>
+            <tr>
+                <th>Empresa</th>
+                <th>Squad</th>
+                <th>Objetivo</th>
+                <th>KR</th>
+                <th>Macro Ação</th>
+                <th>Ação</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sugestao in sugestoes %}
+                <tr>
+                    <td>{{ sugestao.empresa_nome_contato }}</td>
+                    <td>{{ sugestao.squad_nome }}</td>
+                    <td>{{ sugestao.objetivo_nome }}</td>
+                    <td>{{ sugestao.kr_nome }}</td>
+                    <td>{{ sugestao.MacroAcaoGeradoChatAprovacao.macro_acao }}</td>
+                    <td>
+                        <button type="button" class="btn btn-danger" data-toggle="modal" data-target="#deleteModal" data-objetivo="{{ sugestao.MacroAcaoGeradoChatAprovacao.id }}">Deletar</button>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <!-- Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" role="dialog" aria-labelledby="deleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteModalLabel">Deletar Macro Ação</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <form id="deleteForm" method="post">
+                    <div class="modal-body" id="deleteContent">
+                        Tem certeza de que deseja deletar esta macro ação?
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger" id="deleteMacroAcaoButton">Deletar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script>
+        $('#deleteModal').on('show.bs.modal', function (event) {
+            var button = $(event.relatedTarget);
+            var objetivoId = button.data('objetivo');
+            var action = "{{ url_for('deletar_macro_acao_gpt_prompt_gpt', id=0) }}".replace('0', objetivoId);
+            $('#deleteForm').attr('action', action);
+        });
+    </script>
+{% endblock %}

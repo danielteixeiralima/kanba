@@ -16,6 +16,16 @@
                                     {% endfor %}
                                 </select>
                             </div>
+
+                            <!-- Aqui você adiciona o select para o squad -->
+                            <div class="form-group">
+                                <label for="squad" style="color: white;">Squad:</label>
+                                <select class="form-control" id="squad" name="squad" required>
+                                    {% for squad in squads %}
+                                        <option value="{{ squad.id }}" {% if squad.id == okr.squad_id %} selected {% endif %}>{{ squad.nome_squad }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
                             <div class="form-group">
                                 <label for="objetivo" style="color: white;">Objetivo:</label>
                                 <input type="text" class="form-control" id="objetivo" name="objetivo" value="{{ okr.objetivo }}" required>
@@ -35,4 +45,19 @@
             </div>
         </div>
     </div>
+<script>
+    // Atualizar squads dinamicamente baseado na empresa selecionada
+    $(document).ready(function() {
+        $("#empresa").change(function() {
+            var empresaId = $(this).val();
+            $.getJSON('/get_squads/' + empresaId, function(data) {
+                var select = $('#squad');
+                select.empty();
+                $.each(data, function(key, value) {
+                    select.append('<option value="' + value.id + '">' + value.nome + '</option>');
+                });
+            });
+        });
+    });
+</script>
 {% endblock %}

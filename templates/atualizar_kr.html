@@ -9,24 +9,12 @@
                     <div class="card-body">
                         <form action="{{ url_for('atualizar_kr', id=kr.id) }}" method="POST">
                             <div class="form-group">
-                                <label for="empresa" style="color: white;">Empresa:</label>
-                                <select class="form-control" id="empresa" name="empresa">
-                                    {% for empresa in empresas %}
-                                        <option value="{{ empresa.id }}" {% if empresa.id == kr.id_empresa %} selected {% endif %}>{{ empresa.nome_contato }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="okr" style="color: white;">Objetivo:</label>
-                                <select class="form-control" id="okr" name="okr">
-                                    {% for okr in okrs %}
-                                        <option value="{{ okr.id }}" {% if okr.id == kr.id_okr %} selected {% endif %}>{{ okr.objetivo }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="texto" style="color: white;">Texto:</label>
+                                <label for="texto" style="color: white;">Texto (KR):</label>
                                 <input type="text" class="form-control" id="texto" name="texto" value="{{ kr.texto }}" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="meta" style="color: white;">Meta:</label>
+                                <input type="text" class="form-control" id="meta" name="meta" value="{{ kr.meta }}" required>
                             </div>
                             <button type="submit" class="btn btn-primary btn-block">Atualizar</button>
                         </form>
@@ -36,7 +24,59 @@
         </div>
     </div>
 {% endblock %}
-{% block scripts %}
-    <script src="{{ url_for('static', filename='main.js') }}"></script>
-{% endblock %}
 
+{% block scripts %}
+    <script>
+        // Função para limpar e preencher o dropdown dado um conjunto de dados e o elemento dropdown
+        function populateDropdown(dropdown, data, valueKey, labelKey) {
+            dropdown.innerHTML = "";
+            data.forEach(item => {
+                let option = new Option(item[labelKey], item[valueKey]);
+                dropdown.add(option);
+            });
+        }
+
+        // Evento quando a empresa é alterada
+        document.getElementById("empresa").addEventListener("change", function() {
+            let empresaId = this.value;
+            let squadDropdown = document.getElementById("squad");
+
+            fetch('/get_squads/' + empresaId)
+                .then(response => {
+                    if (!response.ok) throw new Error("Erro ao buscar squads");
+                    return response.json();
+                })
+                .then(data => {
+                    populateDropdown(squadDropdown, data, 'id', 'nome_squad');
+                })
+                .catch(error => {
+                    console.error("Erro:", error);
+                });
+        });
+
+        // Evento quando o squad é alterado
+        document.getElementById("squad").addEventListener("change", function() {
+            let squadId = this.value;
+            let okrDropdown = document.getElementById("okr");
+
+            fetch('/get_okrs_by_squad/' + squadId)
+                .then(response => {
+                    if (!response.ok) throw new Error("Erro ao buscar OKRs");
+                    return response.json();
+                })
+                .then(data => {
+                    populateDropdown(okrDropdown, data, 'id', 'objetivo');
+                })
+                .catch(error => {
+                    console.error("Erro:", error);
+                });
+        });
+
+        // Carrega os squads assim que a página é carregada se uma empresa estiver selecionada
+        window.addEventListener('load', (event) => {
+            if (document.getElementById("empresa").value) {
+                document.getElementById("empresa").dispatchEvent(new Event('change'));
+            }
+        });
+    </script>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block content %}
+    <h2>Objetivos a Aprovar</h2>
+    <form action="{{ url_for('enviar_forms_feedback') }}" method="post">
+        <input type="hidden" name="empresa_id" value="{{ empresa.id }}">
+        <input type="hidden" name="squad_id" value="{{ squad.id }}">
+        <table class="styled-table">
+            <thead>
+                <tr>
+                    <th>Objetivo</th>
+                    <th>Aprovado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for objetivo in objetivos %}
+                    <tr>
+                        <td>{{ objetivo.objetivo }}</td>
+                        <td>
+                            <form action="{{ url_for('deletar_objetivo_sugestao_gpt_2', objetivo_id=objetivo.id) }}" method="post">
+                                <button type="submit" class="btn btn-danger">Deletar</button>
+                            </form>
+                            <form action="{{ url_for('aprovar_objetivo_sugestao_gpt_2', objetivo_id=objetivo.id) }}" method="post">
+                                <button type="submit" class="btn btn-success">Aprovar</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+
+            </tbody>
+        </table>
+        <div style="text-align: center;">
+            <textarea id="feedback" name="feedback" rows="4" cols="50" placeholder="Insira suas observações aqui..."></textarea><br>
+            <button type="submit" class="btn btn-success">OK</button>
+        </div>
+    </form>
+{% endblock %}

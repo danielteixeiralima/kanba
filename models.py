@@ -78,13 +78,68 @@ class Usuario(db.Model, UserMixin):
     def verify_password(self, password):
         return check_password_hash(self.password_hash, password)
 
+
+
+class Squad(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
+    nome_squad = db.Column(db.String(100), nullable=False)
+    data_inicio = db.Column(db.DateTime, nullable=False)
+    data_fim = db.Column(db.DateTime)
+
+    empresa = db.relationship('Empresa', backref='squads')
+    usuarios = db.relationship('Usuario', secondary='squad_usuarios', backref=db.backref('squads', lazy='dynamic'))
+
+# Tabela associativa para relação muitos-para-muitos entre Squad e Usuario
+squad_usuarios = db.Table('squad_usuarios',
+    db.Column('squad_id', db.Integer, db.ForeignKey('squad.id')),
+    db.Column('usuario_id', db.Integer, db.ForeignKey('usuario.id'))
+)
+
+
+class FormsObjetivos(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
+    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
+    data = db.Column(db.JSON)  # Você pode armazenar as informações do xlsx em um campo JSON
+
+    empresa = db.relationship('Empresa', backref='forms_objetivos')
+    squad = db.relationship('Squad', backref='forms_objetivos')
+
+
+class ObjetivoGeradoChatAprovacao(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    objetivo = db.Column(db.String, nullable=False)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
+    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
+    aprovado = db.Column(db.Boolean, default=False) # Você pode adicionar este campo se precisar aprovar os objetivos
+
+    empresa = db.relationship('Empresa', backref='objetivos_gerados')
+    squad = db.relationship('Squad', backref='objetivos_gerados')
+
+class KrGeradoChatAprovacao(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    objetivo = db.Column(db.String(255), nullable=False)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
+    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
+    KR = db.Column(db.String(255), nullable=False)
+    meta = db.Column(db.String(255), nullable=True) # Novo campo
+
+    empresa = db.relationship('Empresa', backref='kr_gerados')
+    squad = db.relationship('Squad', backref='kr_gerados')
+
+
+
 class OKR(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     id_empresa = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
-    empresa = db.relationship('Empresa', backref='okrs')
+    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)  # Adicionada relação com o Squad
     objetivo = db.Column(db.String(200))
     data_inicio = db.Column(db.DateTime, nullable=False)
     data_fim = db.Column(db.DateTime, nullable=False)
+
+    empresa = db.relationship('Empresa', backref='okrs')
+    squad = db.relationship('Squad', backref='okrs')  # Adicionada relação com o Squad
 
 
 
@@ -93,10 +148,26 @@ class KR(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     id_empresa = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
     id_okr = db.Column(db.Integer, db.ForeignKey('okr.id'), nullable=False)
+    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False) # Novo campo
+    meta = db.Column(db.String(255), nullable=True) # Novo campo
     texto = db.Column(db.String(200))
     data_inclusao = db.Column(db.DateTime, default=datetime.utcnow)
+    data_final = db.Column(db.DateTime)
     okr = db.relationship('OKR', backref='krs')
+    squad = db.relationship('Squad', backref='krs') # Relacionamento com a tabela Squad
 
+
+class MacroAcaoGeradoChatAprovacao(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
+    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
+    objetivo_id = db.Column(db.Integer, db.ForeignKey('okr.id'), nullable=False)
+    kr_id = db.Column(db.Integer, db.ForeignKey('kr.id'), nullable=False)
+    macro_acao = db.Column(db.Text)
+    empresa = db.relationship('Empresa', backref='macro_acoes')
+    squad = db.relationship('Squad', backref='macro_acoes')
+    okr = db.relationship('OKR', backref='macro_acoes')
+    kr = db.relationship('KR', backref='sugestao_macro_acoes')
 
 
 
@@ -107,10 +178,38 @@ class MacroAcao(db.Model):
     data_inclusao = db.Column(db.DateTime, default=datetime.utcnow)
     kr_id = db.Column(db.Integer, db.ForeignKey('kr.id'), nullable=False)
     objetivo = db.Column(db.String(500), nullable=False)
+    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
     objetivo_id = db.Column(db.Integer, nullable=False)
     empresa = db.Column(db.String(500), nullable=False)
     empresa_id = db.Column(db.Integer, nullable=False)
     kr = db.relationship('KR', backref='macro_acoes')
+    squad = db.relationship('Squad', backref='macroacoes')
+
+
+
+
+class TarefasMetasSemanais(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    empresa = db.Column(db.String(255), nullable=False)
+    squad_name = db.Column(db.String(255), nullable=False)  # Aqui mudamos para squad_name
+    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
+    tarefa = db.Column(db.Text, nullable=False)
+    meta_semanal = db.Column(db.Text, nullable=False)
+    data_inclusao = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    data_conclusao = db.Column(db.DateTime)
+    squad = db.relationship('Squad', backref='tarefas')
+
+    def __init__(self, empresa, squad_name, squad_id, tarefa, meta_semanal, data_conclusao=None):
+        self.empresa = empresa
+        self.squad_name = squad_name
+        self.squad_id = squad_id  # Atribua o valor do argumento aqui
+        self.tarefa = tarefa
+        self.meta_semanal = meta_semanal
+        self.data_conclusao = data_conclusao
+
+    def __repr__(self):
+        return f'<Tarefa e Meta Semanal {self.id}: {self.tarefa}>'
+
 
 
 
@@ -190,7 +289,7 @@ class PostsInstagram(db.Model):
     id = db.Column(db.String, primary_key=True)
     id_empresa = db.Column(db.String(64), index=True)
     timestamp = db.Column(db.String(64))
-    caption = db.Column(db.String(2000))
+    caption = db.Column(db.String(4000))
     like_count = db.Column(db.Integer)
     comments_count = db.Column(db.Integer)
     reach = db.Column(db.Integer)
@@ -199,6 +298,7 @@ class PostsInstagram(db.Model):
     plays = db.Column(db.Integer)
     saved = db.Column(db.Integer)
     nome_empresa = db.Column(db.String(64))
+    analisado = db.Column(db.Boolean)  # Campo "analisado" adicionado
 
     def to_dict(self):
         return {
@@ -214,14 +314,15 @@ class PostsInstagram(db.Model):
             'plays': self.plays,
             'saved': self.saved,
             'nome_empresa': self.nome_empresa,
+            'analisado': self.analisado,  # Incluído o campo "analisado" no dicionário
         }
-
 
 class AnaliseInstagram(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     data_criacao = db.Column(db.String(64))
     analise = db.Column(db.Text)
     nome_empresa = db.Column(db.String(64))
+    recente = db.Column(db.Boolean)
 
     def to_dict(self):
         return {
@@ -229,7 +330,9 @@ class AnaliseInstagram(db.Model):
             'data_criacao': self.data_criacao,
             'analise': self.analise,
             'nome_empresa': self.nome_empresa,
+            'recente': self.recente,
         }
+
 
 
 class analise_anuncios(db.Model):
@@ -245,3 +348,70 @@ class analise_anuncios(db.Model):
     cpm = db.Column(db.Float)
     ctr = db.Column(db.Float)
     cpc = db.Column(db.Float)
+
+class Trello(db.Model):
+
+    id = db.Column(db.Integer, primary_key=True)
+    nome_tarefa = db.Column(db.String(64))
+    desc = db.Column(db.String(1000))
+    start = db.Column(db.String(64))
+    close = db.Column(db.String(64))
+    pos = db.Column(db.String(64))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nome_tarefa': self.nome_tarefa,
+            'desc': self.desc,
+            'start': self.start,
+            'close': self.close,
+            'pos': self.pos
+        }
+
+
+'''
+class TarefasAtuais(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    empresa = db.Column(db.String(255), nullable=False)
+    squad_name = db.Column(db.String(255), nullable=False)  # Aqui mudamos para squad_name
+    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
+    tarefa = db.Column(db.Text, nullable=False)
+    data_inclusao = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    data_conclusao = db.Column(db.DateTime)
+    squad = db.relationship('Squad', backref='tarefas_atuais')
+
+class TarefasConcluidas(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    empresa = db.Column(db.String(255), nullable=False)
+    squad_name = db.Column(db.String(255), nullable=False)  # Aqui mudamos para squad_name
+    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
+    tarefa = db.Column(db.Text, nullable=False)
+    data_inclusao = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    data_conclusao = db.Column(db.DateTime)
+    squad = db.relationship('Squad', backref='tarefas_concluidas')
+    
+
+
+
+class TarefasAndamento(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    empresa = db.Column(db.String(255), nullable=False)
+    squad_name = db.Column(db.String(255), nullable=False)  # Aqui mudamos para squad_name
+    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
+    tarefa = db.Column(db.Text, nullable=False)
+    data_inclusao = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    data_conclusao = db.Column(db.DateTime)
+    squad = db.relationship('Squad', backref='tarefas_atuais')
+
+class TarefasFinalizadas(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    empresa = db.Column(db.String(255), nullable=False)
+    squad_name = db.Column(db.String(255), nullable=False)  # Aqui mudamos para squad_name
+    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
+    tarefa = db.Column(db.Text, nullable=False)
+    data_inclusao = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    data_conclusao = db.Column(db.DateTime)
+    squad = db.relationship('Squad', backref='tarefas_concluidas')
+
+
+'''

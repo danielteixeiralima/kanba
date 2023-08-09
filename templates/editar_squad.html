@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Editar Squad</h1>
+    <form method="post">
+        <div class="form-group">
+            <label for="empresa">Empresa:</label>
+            <select name="empresa" id="empresa" class="form-control">
+                {% for empresa in empresas %}
+                    <option value="{{ empresa.id }}" {% if empresa.id == squad.empresa.id %}selected{% endif %}>{{ empresa.nome_contato }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="nome_squad">Nome do Squad:</label>
+            <input type="text" name="nome_squad" id="nome_squad" value="{{ squad.nome_squad }}" class="form-control">
+        </div>
+        <div class="form-group">
+            <label for="usuarios">Usuários:</label>
+            <select name="usuarios" id="usuarios" class="form-control" multiple>
+                {% for usuario in usuarios %}
+                    <option value="{{ usuario.id }}" {% if usuario in squad.usuarios %}selected{% endif %}>{{ usuario.nome }} {{ usuario.sobrenome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="data_inicio">Data de Início:</label>
+            <input type="date" name="data_inicio" id="data_inicio" value="{{ squad.data_inicio.strftime('%Y-%m-%d') }}" class="form-control">
+        </div>
+        <div class="form-group">
+            <label for="data_fim">Data de Término (opcional):</label>
+            <input type="date" name="data_fim" id="data_fim" value="{{ squad.data_fim.strftime('%Y-%m-%d') if squad.data_fim else '' }}" class="form-control">
+        </div>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+        <a href="{{ url_for('listar_squad') }}" class="btn btn-secondary">Cancelar</a>
+    </form>
+{% endblock %}

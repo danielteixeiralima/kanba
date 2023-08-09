@@ -6,6 +6,8 @@
     <table class="styled-table">
         <thead>
             <tr>
+                <th>ID</th>
+                <th>Squad</th>
                 <th>Empresa</th>
                 <th>Objetivo</th>
                 <th>Data Início</th>
@@ -16,6 +18,8 @@
         <tbody>
             {% for okr in okrs %}
             <tr>
+                <td>{{ okr.id }}</td>
+                <td>{{ okr.squad.nome_squad if okr.squad else '' }}</td>
                 <td>{{ okr.empresa.nome_contato }}</td>
                 <td>{{ okr.objetivo }}</td>
                 <td>{{ okr.data_inicio }}</td>

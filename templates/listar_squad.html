@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Lista de Squads</h1>
+    <a href="{{ url_for('incluir_squad') }}" class="btn btn-success">Incluir Novo Squad</a>
+    <table class="styled-table">
+        <thead>
+            <tr>
+                <th>ID</th> <!-- Adicionada nova coluna para o ID -->
+                <th>Empresa</th>
+                <th>Nome do Squad</th>
+                <th>Usuários</th>
+                <th>Data de Início</th>
+                <th>Data Fim</th>
+                <th>Ação</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for squad in squads %}
+                <tr>
+                    <td>{{ squad.id }}</td> <!-- Adicionado o ID do squad -->
+                    <td>{{ squad.empresa.nome_contato }}</td>
+                    <td>{{ squad.nome_squad }}</td>
+                    <td>
+                        {% for usuario in squad.usuarios %}
+                            {{ usuario.nome }}<br>
+                        {% endfor %}
+                    </td>
+                    <td>{{ squad.data_inicio }}</td>
+                    <td>{{ squad.data_fim }}</td>
+                    <td>
+                        <a href="{{ url_for('editar_squad', squad_id=squad.id) }}" class="btn btn-primary">Editar</a>
+                        <button type="button" class="btn btn-danger" data-toggle="modal" data-target="#deleteModal" data-squad="{{ squad.id }}">Deletar</button>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" role="dialog" aria-labelledby="deleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteModalLabel">Deletar Squad</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <form id="deleteForm" method="post">
+                    <div class="modal-body" id="deleteContent">
+                        Tem certeza de que deseja deletar este squad?
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger" id="deleteSquadButton">Deletar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script>
+        $('#deleteModal').on('show.bs.modal', function (event) {
+            var button = $(event.relatedTarget);
+            var squadId = button.data('squad');
+            var action = "{{ url_for('deletar_squad', squad_id=0) }}".replace('0', squadId);
+            $('#deleteForm').attr('action', action);
+        });
+    </script>
+{% endblock %}

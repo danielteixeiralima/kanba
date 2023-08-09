@@ -31,36 +31,34 @@
         <div class="dropdown-content">
             <a href="{{ url_for('listar_empresas') }}">Empresas</a>
             <a href="{{ url_for('listar_usuarios') }}">Usuários</a>
-            <a href="{{ url_for('listar_okrs') }}">OKR</a>
-            <a href="{{ url_for('listar_krs') }}">KRs</a>
-            <a href="{{ url_for('listar_macro_acao') }}">Gerar Marco Ação- GPT-4</a>
-            <a href="{{ url_for('listar_macro_acoes_aprovadas') }}">Macro Ações</a>
-            <a href="{{ url_for('montagem_sprint_semana') }}">Gerar Sprint da Semana - GPT-4</a>
-            <a href="{{ url_for('listar_sprints_semana') }}">Sprint da Semana</a>
-            <a href="{{ url_for('montagem_lista_usuario_sprint') }}">Gerar Lista de Tarefas - GPT-4</a>
-            <a href="{{ url_for('listar_tarefas_semanais_usuario') }}">Tarefas</a>
-            <a href="{{ url_for('selecionar_empresa_mural') }}">Mural</a>
-            <a href="{{ url_for('montagem_email_tarefas') }}">Envio de Email</a>
+            <a href="{{ url_for('listar_squad') }}">Squad</a>
+            <a href="{{ url_for('listar_okrs') }}">Objetivos</a>
+            <a href="{{ url_for('listar_krs') }}">KR's</a>
+            <a href="{{ url_for('listar_macro_acoes_aprovadas') }}">Macro Ação</a>
+            <a href="{{ url_for('listar_forms_objetivos') }}">Forms Objetivo</a>
         </div>
     </div>
     <div class="dropdown">
-    <button class="dropbtn">Acompanhamento</button>
-    <div class="dropdown-content">
-        <a href="{{ url_for('revisao_sprint_semana') }}">Sprint da Semana</a>
-        <a href="{{ url_for('selecionar_empresa_sprint_semanal') }}">Montagem Sprint da Semana - GPT4</a>
-        <a href="{{ url_for('listar_sprint_aguardando_aprovacao') }}">Sprints Pendentes</a>
-    </div>
+        <button class="dropbtn">Automações</button>
+        <div class="dropdown-content">
+            <a href="{{ url_for('gerar_objetivos_prompt') }}">Gerar Objetivos</a>
+            <a href="{{ url_for('listar_sugestao_objetivos_gpt') }}">Listar Objetivos a aprovar</a>
+            <a href="{{ url_for('escolher_empresa_squad_feedback') }}">Enviar Feedback dos Objetivos a Aprovar</a>
+            <a href="{{ url_for('gerar_krs_prompt') }}">Gerar KR's</a>
+            <a href="{{ url_for('listar_krs_sugestao_gpt') }}">Listar KR's a aprovar</a>
+            <a href="{{ url_for('escolher_empresa_squad_feedback_kr') }}">Enviar Feedback dos Objetivos a Aprovar</a>
+            <a href="{{ url_for('gerar_macro_acao_sugestao') }}">Gerar Macro Ação</a>
+            <a href="{{ url_for('listar_sugestao_macro_acao_gpt') }}">Listar Macro Ações a aprovar</a>
+            <a href="{{ url_for('escolher_empresa_macro_acao_feedback') }}">Enviar Feedback das Macro Ações a Aprovar</a>
+            <a href="{{ url_for('escolher_empresa_tarefa') }}">Gerar Tarefa</a>
+            <a href="{{ url_for('listar_tarefas_metas_semanais') }}">Listar Tarefas e Metas Semanais</a>
+
+
+
+
+        </div>
     </div>
 
-    <div class="dropdown">
-        <button class="dropbtn">Social Media</button>
-        <div class="dropdown-content">
-            <a href="{{ url_for('planejamento_redes') }}">Planejamento de Rede</a>
-            <!-- Aqui você pode adicionar as outras rotas quando estiverem prontas -->
-            <a href="#">Analise dos Posts</a>
-            <a href="#">Sugestão de Pautas</a>
-        </div>
-    </div>
     {% block content %}{% endblock %}
     <!-- jQuery, Popper.js, Bootstrap JS -->
     <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>

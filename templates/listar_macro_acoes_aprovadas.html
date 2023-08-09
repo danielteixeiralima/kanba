@@ -5,11 +5,13 @@
     <a href="{{ url_for('cadastrar_macro_acao') }}" class="btn btn-primary">Cadastrar Nova Macro Ação</a>
     <input type="text" id="filter-empresa" placeholder="Filtrar por Empresa">
     <input type="text" id="filter-objetivo" placeholder="Filtrar por Objetivo">
+    <input type="text" id="filter-squad" placeholder="Filtrar por Squad"> <!-- Novo filtro -->
     <table class="styled-table" id="macro-acoes-table">
         <thead>
             <tr>
                 <th>ID</th>
                 <th>Empresa</th>
+                <th>Squad</th> <!-- Nova coluna no cabeçalho -->
                 <th>Objetivo</th>
                 <th>KR</th>
                 <th>Texto</th>
@@ -23,6 +25,7 @@
             <tr>
                 <td>{{ acao.id }}</td>
                 <td>{{ acao.kr.okr.empresa.nome_contato }}</td>
+                <td>{{ acao.squad.nome_squad }}</td> <!-- Nova coluna de dados -->
                 <td>{{ acao.objetivo }}</td>
                 <td>{{ acao.kr.texto }}</td>
                 <td>{{ acao.texto }}</td>
@@ -40,20 +43,27 @@
     <script>
     var filters = {
         'empresa': '',
-        'objetivo': ''
+        'objetivo': '',
+        'squad': '' // Novo filtro
     };
 
     function applyFilters() {
         var rows = document.getElementById('macro-acoes-table-body').rows;
         for (var i = 0; i < rows.length; i++) {
             var empresa = rows[i].cells[1].innerText.toLowerCase();
-            var objetivo = rows[i].cells[2].innerText.toLowerCase();
-            rows[i].style.display = empresa.indexOf(filters.empresa) > -1 && objetivo.indexOf(filters.objetivo) > -1 ? '' : 'none';
+            var squad = rows[i].cells[2].innerText.toLowerCase(); // Nova linha para squad
+            var objetivo = rows[i].cells[3].innerText.toLowerCase();
+            rows[i].style.display = empresa.indexOf(filters.empresa) > -1 && squad.indexOf(filters.squad) > -1 && objetivo.indexOf(filters.objetivo) > -1 ? '' : 'none';
         }
     }
 
     document.getElementById('filter-empresa').addEventListener('keyup', function() {
         filters.empresa = this.value.toLowerCase();
+        applyFilters();
+    });
+
+    document.getElementById('filter-squad').addEventListener('keyup', function() { // Novo listener para squad
+        filters.squad = this.value.toLowerCase();
         applyFilters();
     });
 

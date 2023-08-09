@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block content %}
+<form action="{{ url_for('escolher_empresa_squad_feedback') }}" method="post">
+    <label for="empresa">Escolha a Empresa:</label>
+    <select id="empresa" name="empresa" onchange="getSquads()">
+        <option value="" disabled selected>Selecione</option>
+        {% for empresa in empresas %}
+        <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
+        {% endfor %}
+    </select>
+    
+    <label for="squad">Escolha o Squad:</label>
+    <select id="squad" name="squad">
+        <!-- Squads serão carregados dinamicamente aqui -->
+    </select>
+    
+    <button type="submit">OK</button>
+</form>
+
+<script>
+    function getSquads() {
+        var empresaId = document.getElementById('empresa').value;
+        // Faça uma chamada AJAX para buscar os Squads da empresa selecionada
+    }
+    function getSquads() {
+    var empresaId = document.getElementById('empresa').value;
+    fetch('/get_squads/' + empresaId)
+        .then(response => response.json())
+        .then(squads => {
+            var select = document.getElementById('squad');
+            select.innerHTML = ''; // Limpa o dropdown
+            squads.forEach(squad => {
+                var option = document.createElement('option');
+                option.value = squad.id; // Usa o ID do squad como valor
+                option.text = squad.nome; // Usa o nome do squad como texto
+                select.appendChild(option); // Adiciona o squad ao dropdown
+            });
+        });
+}
+</script>
+{% endblock %}

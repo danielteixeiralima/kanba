@@ -7,6 +7,7 @@
         <thead>
             <tr>
                 <th>Empresa</th>
+                <th>Squad</th>
                 <th>Objetivo</th>
                 <th>KR</th>
                 <th>Usuários</th>
@@ -18,6 +19,7 @@
             {% for kr in krs %}
             <tr>
                 <td>{{ kr.okr.empresa.nome_contato }}</td>
+                <td>{{ kr.macro_acao.squad.nome }}</td> <!-- Supondo que exista um campo 'nome' no modelo 'Squad' -->
                 <td>{{ kr.okr.objetivo }}</td>
                 <td>{{ kr.texto }}</td>
                 <td>
@@ -28,7 +30,6 @@
                 <td>{{ kr.okr.empresa.descricao_empresa }}</td>
                 <td>
                     <a href="{{ url_for('gerar_macro_acao', id=kr.id) }}" class="btn btn-primary">Gerar Macro Ação</a>
-
                 </td>
             </tr>
             {% endfor %}

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container">
+        <div class="row justify-content-center align-items-center" style="height:100vh">
+            <div class="col-4">
+                <h1 class="text-center mb-4 text-white">Forms Objetivo</h1>
+                <div class="card" style="background-color: #333;">
+                    <div class="card-body">
+                        <form action="{{ url_for('forms_objetivo') }}" method="post" enctype="multipart/form-data">
+                            <div class="form-group">
+                                <label for="empresa" style="color: black;">Selecionar Empresa:</label>
+                                <select class="form-control" id="empresa" name="empresa_id" required onchange="loadSquads()">
+                                    {% for empresa in empresas %}
+                                        <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="squad" style="color: black;">Selecionar Squad:</label>
+                                <select class="form-control" id="squad" name="squad_id" required>
+                                    <!-- Squads serão carregados aqui -->
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="file" style="color: black;">Selecionar Arquivo:</label>
+                                <input type="file" class="form-control" id="file" name="file" accept=".xlsx" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-block">Enviar</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        function loadSquads() {
+            var empresa_id = document.getElementById('empresa').value;
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '/get_squads/' + empresa_id, true);
+            xhr.responseType = 'json';
+            xhr.onload = function() {
+                var status = xhr.status;
+                if (status === 200) {
+                    var squads = xhr.response;
+                    var select = document.getElementById('squad');
+                    select.innerHTML = '';
+                    squads.forEach(function(squad) {
+                        var option = document.createElement('option');
+                        option.value = squad.id;
+                        option.textContent = squad.nome;
+                        select.appendChild(option);
+                    });
+                }
+            };
+            xhr.send();
+        }
+    </script>
+{% endblock %}

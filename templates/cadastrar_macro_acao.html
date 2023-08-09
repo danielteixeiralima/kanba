@@ -1,45 +1,88 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <div class="container">
-        <div class="row justify-content-center align-items-center" style="height:100vh">
-            <div class="col-4">
-                <h1 class="text-center mb-4 text-white">Cadastrar Macro Ação</h1>
-                <div class="card" style="background-color: #333;">
-                    <div class="card-body">
-                        <form action="{{ url_for('cadastrar_macro_acao') }}" method="POST">
-                            <div class="form-group">
-                                <label for="empresa" style="color: black;">Empresa:</label>
-                                <select class="form-control" id="empresa" name="empresa" required>
-                                    {% for empresa in empresas %}
-                                        <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="objetivo" style="color: black;">Objetivo:</label>
-                                <select class="form-control" id="objetivo" name="objetivo" required>
-                                    {% for objetivo in objetivos %}
-                                        <option value="{{ objetivo.id }}">{{ objetivo.objetivo }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="kr" style="color: black;">KR:</label>
-                                <select class="form-control" id="kr" name="kr" required>
-                                    <!-- Os KRs serão preenchidos dinamicamente pelo JavaScript -->
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="texto" style="color: black;">Texto:</label>
-                                <input type="text" class="form-control" id="texto" name="texto" required>
-                            </div>
-                            <button type="submit" class="btn btn-primary btn-block">Cadastrar</button>
-                        </form>
-                    </div>
+<div class="container">
+    <div class="row justify-content-center align-items-center" style="height:100vh">
+        <div class="col-4">
+            <h1 class="text-center mb-4 text-white">Cadastrar Macro Ação</h1>
+            <div class="card" style="background-color: #333;">
+                <div class="card-body">
+                    <form action="{{ url_for('cadastrar_macro_acao') }}" method="POST">
+                        <div class="form-group">
+                            <label for="empresa" style="color: black;">Empresa:</label>
+                            <select class="form-control" id="empresa" name="empresa" required>
+                                {% for empresa in empresas %}
+                                    <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="squad" style="color: black;">Squad:</label>
+                            <select class="form-control" id="squad" name="squad" required>
+                                <!-- Os Squads serão preenchidos dinamicamente pelo JavaScript após escolher a empresa -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="objetivo" style="color: black;">Objetivo:</label>
+                            <select class="form-control" id="objetivo" name="objetivo" required>
+                                {% for objetivo in objetivos %}
+                                    <option value="{{ objetivo.id }}">{{ objetivo.objetivo }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="kr" style="color: black;">KR:</label>
+                            <select class="form-control" id="kr" name="kr" required>
+                                <!-- Os KRs serão preenchidos dinamicamente pelo JavaScript -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="texto" style="color: black;">Texto:</label>
+                            <input type="text" class="form-control" id="texto" name="texto" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">Cadastrar</button>
+                    </form>
                 </div>
             </div>
         </div>
     </div>
-    <script src="{{ url_for('static', filename='main.js') }}"></script>
+</div>
+<script>
+    function updateDropdownFromEndpoint(endpoint, selectId, valueField, textField) {
+        fetch(endpoint)
+        .then(response => response.json())
+        .then(data => {
+            const selectElement = document.getElementById(selectId);
+            selectElement.innerHTML = data.map(d => `<option value="${d[valueField]}">${d[textField]}</option>`).join('');
+            // Trigger the change event for cascading dropdowns
+            selectElement.dispatchEvent(new Event('change'));
+        })
+        .catch(error => {
+            console.error('Error fetching data:', error);
+        });
+    }
+
+    document.getElementById('empresa').addEventListener('change', function() {
+        updateDropdownFromEndpoint(`/get_squads/${this.value}`, 'squad', 'id', 'nome');
+    });
+
+    document.getElementById('squad').addEventListener('change', function() {
+        updateDropdownFromEndpoint(`/get_objectives_by_squad/${this.value}`, 'objetivo', 'id', 'objetivo');
+    });
+
+    document.getElementById('objetivo').addEventListener('change', function() {
+        const empresaId = document.getElementById('empresa').value;
+        const squadId = document.getElementById('squad').value;
+        const objetivoId = this.value;
+
+        fetch(`/get_krs/${empresaId}/${squadId}/${objetivoId}`)
+        .then(response => response.json())
+        .then(data => {
+            const krSelect = document.getElementById('kr');
+            krSelect.innerHTML = data.map(d => `<option value="${d.id}">${d.texto}</option>`).join('');
+        });
+    });
+
+
+</script>
 {% endblock %}

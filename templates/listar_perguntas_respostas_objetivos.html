@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container" style="color: #333;">
+        <h1 class="text-center mb-4" style="color: #333;">Perguntas e Respostas</h1>
+        <table class="table table-dark table-striped">
+            <thead>
+                <tr>
+                    <!-- Cabeçalhos da tabela - Você pode ajustá-los de acordo com sua planilha -->
+                    <th>Coluna 1</th>
+                    <th>Coluna 2</th>
+                    <!-- Adicione mais cabeçalhos conforme necessário -->
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in perguntas_respostas %}
+                <tr>
+                    {% for cell in row %}
+                        <td>{{ cell }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <form action="{{ url_for('salvar_objetivos') }}" method="post">
+            <input type="hidden" name="empresa_id" value="{{ empresa_id }}">
+            <input type="hidden" name="squad_id" value="{{ squad_id }}">
+            <input type="hidden" name="dados_xlsx" value="{{ dados_xlsx }}">
+            <button type="submit" class="btn btn-primary">Salvar no Banco de Dados</button>
+        </form>
+    </div>
+{% endblock %}

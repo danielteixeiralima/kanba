@@ -17,6 +17,10 @@
                                 </select>
                             </div>
                             <div class="form-group">
+                                <label for="squad" style="color: black;">Squad:</label>
+                                <select class="form-control" id="squad" name="squad" required></select>
+                            </div>
+                            <div class="form-group">
                                 <label for="objetivo" style="color: black;">Objetivo:</label>
                                 <input type="text" class="form-control" id="objetivo" name="objetivo" required>
                             </div>
@@ -35,4 +39,19 @@
             </div>
         </div>
     </div>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $("#empresa").change(function() {
+            var empresaId = $(this).val();
+            $.getJSON('/get_squads/' + empresaId, function(data) {
+                var select = $('#squad');
+                select.empty();
+                $.each(data, function(key, value) {
+                    select.append('<option value="' + value.id + '">' + value.nome + '</option>');
+                });
+            });
+        });
+    });
+</script>
 {% endblock %}

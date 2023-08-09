@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .custom-select {
+        color: black; /* Define a cor do texto dentro do dropdown */
+        background-color: white; /* Define a cor de fundo do dropdown */
+    }
+    .custom-select option {
+        color: black; /* Cor do texto para as opções dentro do dropdown */
+    }
+</style>
+<div class="container">
+    <div class="row justify-content-center align-items-center" style="height:100vh">
+        <div class="col-4">
+            <h1 class="text-center mb-4 text-white">Gerar Macro Ação</h1>
+            <div class="card" style="background-color: #333;">
+                <form action="/gerar_macro_acoes_prompt_gpt" method="post"> <!-- Note a mudança na linha -->
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label for="empresa" style="color: black;">Selecionar Empresa:</label>
+                            <select class="form-control custom-select" id="empresa" name="empresa_id" required onchange="loadSquads()">
+                                {% for empresa in empresas %}
+                                    <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="squad" style="color: black;">Selecionar Squad:</label>
+                            <select class="form-control custom-select" id="squad" name="squad_id" required onchange="loadKRs()">
+                                <!-- Squads serão carregados aqui -->
+                            </select>
+                        </div>
+                        <div id="krs-container">
+                            <!-- KRs serão exibidos aqui -->
+                        </div>
+                        <button type="submit" class="btn btn-primary">Enviar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    function loadSquads() {
+        var empresa_id = document.getElementById('empresa').value;
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/get_squads_sugestao_gpt/' + empresa_id, true);
+        xhr.responseType = 'json';
+        xhr.onload = function() {
+            var status = xhr.status;
+            if (status === 200) {
+                var squads = xhr.response;
+                var select = document.getElementById('squad');
+                select.innerHTML = '';
+                squads.forEach(function(squad) {
+                    var option = document.createElement('option');
+                    option.value = squad.id;
+                    option.textContent = squad.nome_squad;
+                    select.appendChild(option);
+                });
+                loadKRs(); // Carrega os KRs após carregar os Squads
+            }
+        };
+        xhr.send();
+    }
+
+    function loadKRs() {
+        var squad_id = document.getElementById('squad').value;
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/get_krs_prompt_gpt/' + squad_id, true);
+        xhr.responseType = 'json';
+        xhr.onload = function() {
+            var status = xhr.status;
+            if (status === 200) {
+                var container = document.getElementById('krs-container');
+                container.innerHTML = ''; // Limpa o conteúdo anterior
+
+                // Código para exibir os objetivos e KRs (mantido igual ao código anterior)
+                var objectives = xhr.response.objectives;
+                objectives.forEach(function(objective_data) {
+                    var objective_div = document.createElement('div');
+                    objective_div.innerHTML = '<strong>Objetivo:</strong> ' + objective_data.objective;
+                    container.appendChild(objective_div);
+
+                    objective_data.krs.forEach(function(kr) {
+                        var kr_div = document.createElement('div');
+                        kr_div.innerHTML = 'KR: ' + kr.meta + ' ' + kr.texto;
+                        objective_div.appendChild(kr_div);
+                    });
+                });
+
+                // Código para exibir o forms
+                var forms_data = xhr.response.forms;
+                if (forms_data) {
+                    var forms_div = document.createElement('div');
+                    forms_div.innerHTML = '<strong>Forms:</strong> ' + JSON.stringify(forms_data); // Altere isso para a formatação desejada
+                    container.appendChild(forms_div);
+                }
+            }
+        };
+        xhr.send();
+    }
+
+    // Carrega os squads quando a página é carregada
+    window.onload = function() {
+        loadSquads();
+    }
+</script>
+
+{% endblock %}

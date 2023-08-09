@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Listar Tarefas e Metas Semanais</h1>
+    <table class="styled-table">
+        <thead>
+            <tr>
+                <th>Empresa</th>
+                <th>Squad</th>
+                <th>Tarefa</th>
+                <th>Meta Semanal</th>
+                <th>Ação</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tarefa in tarefas %}
+                <tr>
+                    <td>{{ tarefa.empresa }}</td>
+                    <td>{{ tarefa.squad.nome_squad }}</td>
+                    <td>{{ tarefa.tarefa }}</td>
+                    <td>{{ tarefa.meta_semanal }}</td>
+                    <td>
+                        <button type="button" class="btn btn-danger" data-toggle="modal" data-target="#deleteModal" data-tarefa="{{ tarefa.id }}">Deletar</button>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <!-- Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" role="dialog" aria-labelledby="deleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteModalLabel">Deletar Tarefa e Meta Semanal</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <form id="deleteForm" method="post">
+                    <div class="modal-body" id="deleteContent">
+                        Tem certeza de que deseja deletar esta tarefa e meta semanal?
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger" id="deleteTarefaButton">Deletar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script>
+        $('#deleteModal').on('show.bs.modal', function (event) {
+            var button = $(event.relatedTarget);
+            var tarefaId = button.data('tarefa');
+            var action = "{{ url_for('deletar_tarefa_metas_semanais', id=0) }}".replace('0', tarefaId);
+            $('#deleteForm').attr('action', action);
+        });
+    </script>
+{% endblock %}
