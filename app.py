@@ -49,7 +49,7 @@ CLIENT_SECRET = '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'
 # As permissões que seu aplicativo precisa
 SCOPES = ['https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/gmail.readonly']
 
-
+"""
 # Carrega as credenciais do arquivo
 creds = None
 if os.path.exists('token.json'):
@@ -67,6 +67,8 @@ if not creds or not creds.valid:
 
 # Constrói o serviço de e-mail
 service = build('gmail', 'v1', credentials=creds)
+"""
+
 
 # Configuração do gerenciador de login
 login_manager = LoginManager()
