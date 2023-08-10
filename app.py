@@ -60,7 +60,7 @@ if not creds or not creds.valid:
     else:
         flow = InstalledAppFlow.from_client_secrets_file(
             'credentials.json', SCOPES)
-        creds = flow.run_local_server(port=5000, host='127.0.0.1')
+        creds = flow.run_local_server(port=5001, host='127.0.0.1')
     # Salve as credenciais para a próxima execução
     with open('token.json', 'w') as token:
         token.write(creds.to_json())
