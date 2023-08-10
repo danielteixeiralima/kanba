@@ -25,7 +25,7 @@ import openpyxl
 import uuid
 import logging
 from sqlalchemy.orm import joinedload
-from datetime import datetime, timedelta
+
 
 
 load_dotenv()  # Carrega as variáveis de ambiente do arquivo .env
@@ -60,7 +60,7 @@ if not creds or not creds.valid:
     else:
         flow = InstalledAppFlow.from_client_secrets_file(
             'credentials.json', SCOPES)
-        creds = flow.run_local_server(port=5001, host='127.0.0.1')
+        creds = flow.run_local_server(port=5000, host='127.0.0.1')
     # Salve as credenciais para a próxima execução
     with open('token.json', 'w') as token:
         token.write(creds.to_json())
@@ -2629,7 +2629,7 @@ def deletar_objetivo_sugestao_gpt_2(objetivo_id):
     return redirect(url_for('listar_objetivos_gpt_feedback'))
 
 
-
+from datetime import datetime, timedelta
 
 @app.route('/aprovar_objetivo_sugestao_gpt/<int:objetivo_id>', methods=['POST'])
 def aprovar_objetivo_sugestao_gpt_2(objetivo_id):

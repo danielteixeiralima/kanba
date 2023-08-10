@@ -1,5 +1,6 @@
 .env
 *.db
+token.json
 
 # Elastic Beanstalk Files
 .elasticbeanstalk/*
