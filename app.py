@@ -25,7 +25,7 @@ import openpyxl
 import uuid
 import logging
 from sqlalchemy.orm import joinedload
-
+from datetime import datetime, timedelta
 
 
 load_dotenv()  # Carrega as variáveis de ambiente do arquivo .env
@@ -2629,7 +2629,7 @@ def deletar_objetivo_sugestao_gpt_2(objetivo_id):
     return redirect(url_for('listar_objetivos_gpt_feedback'))
 
 
-from datetime import datetime, timedelta
+
 
 @app.route('/aprovar_objetivo_sugestao_gpt/<int:objetivo_id>', methods=['POST'])
 def aprovar_objetivo_sugestao_gpt_2(objetivo_id):
