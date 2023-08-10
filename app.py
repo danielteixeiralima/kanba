@@ -781,20 +781,30 @@ def listar_krs():
         krs = KR.query.filter_by(id_empresa=current_user.id_empresa).all()
     return render_template('listar_krs.html', krs=krs)
 
+
 @app.route('/cadastrar/kr', methods=['GET', 'POST'])
 @login_required
 def cadastrar_kr():
     if request.method == 'POST':
-        id_empresa = int(request.form.get('empresa', '0'))  # Obtenha o valor do campo 'empresa' como uma string e converta-o para um inteiro
-        id_okr = int(request.form.get('objetivo', '0'))  # Obtenha o valor do campo 'objetivo' como uma string e converta-o para um inteiro
+        id_empresa = int(request.form.get('empresa',
+                                          '0'))  # Obtenha o valor do campo 'empresa' como uma string e converta-o para um inteiro
+        id_okr = int(request.form.get('objetivo',
+                                      '0'))  # Obtenha o valor do campo 'objetivo' como uma string e converta-o para um inteiro
         texto = request.form['texto']
 
-        # Obtenha a instância OKR e atribua-a ao KR.
+        squad_id = int(request.form.get('squad',
+                                        '0'))  # Obtenha o valor do campo 'squad' como uma string e converta-o para um inteiro
+
+        # Verifique se o OKR e o Squad existem
         okr = OKR.query.get(id_okr)
+        squad = Squad.query.get(squad_id)
+
         if okr is None:
             return "OKR não encontrado", 404
+        if squad is None:
+            return "Squad não encontrado", 404
 
-        kr = KR(id_empresa=id_empresa, id_okr=id_okr, texto=texto, data_inclusao=datetime.utcnow())
+        kr = KR(id_empresa=id_empresa, id_okr=id_okr, squad_id=squad_id, texto=texto, data_inclusao=datetime.utcnow())
         db.session.add(kr)
         db.session.commit()
         return redirect(url_for('listar_krs'))
@@ -803,7 +813,9 @@ def cadastrar_kr():
         empresas = Empresa.query.all()
     else:
         empresas = Empresa.query.filter_by(id=current_user.id_empresa).all()
+
     return render_template('cadastrar_kr.html', empresas=empresas)
+
 
 @app.route('/atualizar/kr/<int:id>', methods=['GET', 'POST'])
 @login_required
