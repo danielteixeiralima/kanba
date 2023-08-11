@@ -369,6 +369,29 @@ class Trello(db.Model):
         }
 
 
+class TarefasAndamento(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    empresa = db.Column(db.String(255), nullable=False)
+    squad_name = db.Column(db.String(255), nullable=False)  # Aqui mudamos para squad_name
+    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
+    tarefa = db.Column(db.Text, nullable=False)
+    data_inclusao = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    data_conclusao = db.Column(db.DateTime)
+    squad = db.relationship('Squad', backref='tarefas_atuais')
+
+
+class TarefasFinalizadas(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    empresa = db.Column(db.String(255), nullable=False)
+    squad_name = db.Column(db.String(255), nullable=False)  # Aqui mudamos para squad_name
+    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
+    tarefa = db.Column(db.Text, nullable=False)
+    data_inclusao = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    data_conclusao = db.Column(db.DateTime)
+    squad = db.relationship('Squad', backref='tarefas_concluidas')
+
+
+
 '''
 class TarefasAtuais(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -393,25 +416,10 @@ class TarefasConcluidas(db.Model):
 
 
 
-class TarefasAndamento(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    empresa = db.Column(db.String(255), nullable=False)
-    squad_name = db.Column(db.String(255), nullable=False)  # Aqui mudamos para squad_name
-    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
-    tarefa = db.Column(db.Text, nullable=False)
-    data_inclusao = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    data_conclusao = db.Column(db.DateTime)
-    squad = db.relationship('Squad', backref='tarefas_atuais')
 
-class TarefasFinalizadas(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    empresa = db.Column(db.String(255), nullable=False)
-    squad_name = db.Column(db.String(255), nullable=False)  # Aqui mudamos para squad_name
-    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
-    tarefa = db.Column(db.Text, nullable=False)
-    data_inclusao = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    data_conclusao = db.Column(db.DateTime)
-    squad = db.relationship('Squad', backref='tarefas_concluidas')
+
+
 
 
 '''
+

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Tarefas em Andamento</h1>
+    <table class="styled-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Empresa</th>
+                <th>Squad</th>
+                <th>Tarefa</th>
+                <th>Data de Inclusão</th>
+                <th>Data de Conclusão</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tarefa in tarefas %}
+            <tr>
+                <td>{{ tarefa.id }}</td>
+                <td>{{ tarefa.squad.empresa.nome_contato }}</td>
+                <td>{{ tarefa.squad.nome_squad }}</td>
+                <td>{{ tarefa.tarefa }}</td>
+                <td>{{ tarefa.data_inclusao.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ tarefa.data_conclusao.strftime('%d/%m/%Y %H:%M') if tarefa.data_conclusao else 'Em Aberto' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

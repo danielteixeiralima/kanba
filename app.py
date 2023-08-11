@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, abort, flash
-from models import db, Empresa, Resposta, Usuario, OKR, KR, MacroAcao, Sprint, TarefaSemanal, SprintPendente, Squad, FormsObjetivos, ObjetivoGeradoChatAprovacao, KrGeradoChatAprovacao, MacroAcaoGeradoChatAprovacao, TarefasMetasSemanais
+from models import db, Empresa, Resposta, Usuario, OKR, KR, MacroAcao, Sprint, TarefaSemanal, SprintPendente, TarefasFinalizadas, Squad, FormsObjetivos, ObjetivoGeradoChatAprovacao, KrGeradoChatAprovacao, MacroAcaoGeradoChatAprovacao, TarefasMetasSemanais, TarefasAndamento
 import requests
 import json
 from collections import defaultdict
@@ -3334,6 +3334,42 @@ def deletar_tarefa_metas_semanais(id):
     db.session.delete(tarefa_metas_semanais)
     db.session.commit()
     return redirect(url_for('listar_tarefas_metas_semanais'))
+
+
+@app.route('/escolher_empresa_tarefas_andamento', methods=['GET', 'POST'])
+def escolher_empresa_tarefas_andamento():
+    if request.method == 'POST':
+        empresa_id = request.form.get('empresa')
+        squad_id = request.form.get('squad')
+        return redirect(url_for('listar_tarefas_andamento', empresa_id=empresa_id, squad_id=squad_id))
+
+    empresas = Empresa.query.all()
+    return render_template('escolher_empresa_tarefas_andamentos.html', empresas=empresas)
+
+
+@app.route('/listar_tarefas_andamento/<int:empresa_id>/<int:squad_id>')
+def listar_tarefas_andamento(empresa_id, squad_id):
+    tarefas = TarefasAndamento.query.filter_by(squad_id=squad_id).all()
+    return render_template('listar_tarefas_andamento.html', tarefas=tarefas)
+
+
+@app.route('/escolher_empresa_tarefas_finalizadas/')
+def escolher_empresa_tarefas_finalizadas():
+    empresas = Empresa.query.all()
+    return render_template('escolher_empresa_tarefas_finalizadas.html', empresas=empresas)
+
+
+@app.route('/escolher_empresa_tarefas_finalizadas/listar/<int:empresa_id>/<int:squad_id>')
+def listar_tarefas_finalizadas(empresa_id, squad_id):
+    empresa = Empresa.query.get(empresa_id)
+    if not empresa:
+        # Aqui você pode redirecionar para uma página de erro ou retornar uma mensagem
+        return "Empresa não encontrada", 404
+
+    tarefas = TarefasFinalizadas.query.filter_by(empresa=empresa.nome_contato, squad_id=squad_id).all()
+    squad_nome = Squad.query.get(squad_id).nome_squad
+    return render_template('listar_tarefas_finalizadas.html', tarefas=tarefas, empresa_nome=empresa.nome_contato,
+                           squad_nome=squad_nome)
 
 
 

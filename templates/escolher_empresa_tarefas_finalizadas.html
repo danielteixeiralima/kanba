@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block content %}
+<form id="empresaSquadForm">
+    <h2>Escolha a Empresa e o Squad</h2>
+
+    <label for="empresa">Escolha a Empresa:</label>
+    <select id="empresa" name="empresa" onchange="updateSquads()">
+        <option value="" disabled selected>Selecione</option>
+        {% for empresa in empresas %}
+        <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="squad">Escolha o Squad:</label>
+    <select id="squadSelect" name="squad">
+        <option value="" disabled selected>Selecione o Squad</option>
+        <!-- Squads serão carregados dinamicamente aqui -->
+    </select>
+
+    <button type="button" onclick="redirectToTarget()">OK</button>
+</form>
+
+<script>
+    function updateSquads() {
+        var empresaId = document.getElementById("empresa").value;
+        if (!empresaId) return;
+        fetch('/get_squads/' + empresaId)
+        .then(response => response.json())
+        .then(data => {
+            var squadSelect = document.getElementById("squadSelect");
+            squadSelect.innerHTML = '<option value="" disabled selected>Selecione o Squad</option>';
+            data.forEach(squad => {
+                var option = document.createElement("option");
+                option.value = squad.id;
+                option.text = squad.nome;
+                squadSelect.appendChild(option);
+            });
+        });
+    }
+
+    function redirectToTarget() {
+        var empresaId = document.getElementById("empresa").value;
+        var squadId = document.getElementById("squadSelect").value;
+        if (!empresaId || !squadId || empresaId == "" || squadId == "") {
+            alert("Por favor, selecione uma empresa e um squad.");
+        } else {
+            window.location.href = "/escolher_empresa_tarefas_finalizadas/listar/" + empresaId + "/" + squadId;
+        }
+    }
+</script>
+{% endblock %}

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Home</title>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
@@ -12,6 +13,7 @@
             top: 10px;
             right: 10px;
         }
+
         .logout-btn {
             color: white;
             background-color: red;
@@ -19,50 +21,71 @@
             border-radius: 5px;
             text-decoration: none;
         }
+
+        /* Estilo para o dropdown em hover */
+        .dropdown:hover .dropdown-menu {
+            display: block;
+        }
     </style>
 </head>
+
 <body>
     <h1>Bizarte</h1>
     <div class="logout-btn-container">
         <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
     </div>
+
+    <!-- Dropdown Cadastro -->
     <div class="dropdown">
-        <button class="dropbtn">Cadastro</button>
-        <div class="dropdown-content">
-            <a href="{{ url_for('listar_empresas') }}">Empresas</a>
-            <a href="{{ url_for('listar_usuarios') }}">Usuários</a>
-            <a href="{{ url_for('listar_squad') }}">Squad</a>
-            <a href="{{ url_for('listar_okrs') }}">Objetivos</a>
-            <a href="{{ url_for('listar_krs') }}">KR's</a>
-            <a href="{{ url_for('listar_macro_acoes_aprovadas') }}">Macro Ação</a>
-            <a href="{{ url_for('listar_forms_objetivos') }}">Forms Objetivo</a>
+        <button class="btn btn-secondary dropdown-toggle" type="button">
+            Cadastro
+        </button>
+        <div class="dropdown-menu">
+            <a class="dropdown-item" href="{{ url_for('listar_empresas') }}">Empresas</a>
+            <a class="dropdown-item" href="{{ url_for('listar_usuarios') }}">Usuários</a>
+            <a class="dropdown-item" href="{{ url_for('listar_squad') }}">Squad</a>
+            <a class="dropdown-item" href="{{ url_for('listar_okrs') }}">Objetivos</a>
+            <a class="dropdown-item" href="{{ url_for('listar_krs') }}">KR's</a>
+            <a class="dropdown-item" href="{{ url_for('listar_macro_acoes_aprovadas') }}">Macro Ação</a>
+            <a class="dropdown-item" href="{{ url_for('listar_forms_objetivos') }}">Forms Objetivo</a>
         </div>
     </div>
+
+    <!-- Dropdown Montagem OKR -->
     <div class="dropdown">
-        <button class="dropbtn">Automações</button>
-        <div class="dropdown-content">
-            <a href="{{ url_for('gerar_objetivos_prompt') }}">Gerar Objetivos</a>
-            <a href="{{ url_for('listar_sugestao_objetivos_gpt') }}">Listar Objetivos a aprovar</a>
-            <a href="{{ url_for('escolher_empresa_squad_feedback') }}">Enviar Feedback dos Objetivos a Aprovar</a>
-            <a href="{{ url_for('gerar_krs_prompt') }}">Gerar KR's</a>
-            <a href="{{ url_for('listar_krs_sugestao_gpt') }}">Listar KR's a aprovar</a>
-            <a href="{{ url_for('escolher_empresa_squad_feedback_kr') }}">Enviar Feedback dos Objetivos a Aprovar</a>
-            <a href="{{ url_for('gerar_macro_acao_sugestao') }}">Gerar Macro Ação</a>
-            <a href="{{ url_for('listar_sugestao_macro_acao_gpt') }}">Listar Macro Ações a aprovar</a>
-            <a href="{{ url_for('escolher_empresa_macro_acao_feedback') }}">Enviar Feedback das Macro Ações a Aprovar</a>
-            <a href="{{ url_for('escolher_empresa_tarefa') }}">Gerar Tarefa</a>
-            <a href="{{ url_for('listar_tarefas_metas_semanais') }}">Listar Tarefas e Metas Semanais</a>
+        <button class="btn btn-secondary dropdown-toggle" type="button">
+            Montagem OKR
+        </button>
+        <div class="dropdown-menu">
+            <a class="dropdown-item" href="{{ url_for('gerar_objetivos_prompt') }}">Gerar Objetivos</a>
+            <a class="dropdown-item" href="{{ url_for('listar_sugestao_objetivos_gpt') }}">Listar Objetivos a aprovar</a>
+            <a class="dropdown-item" href="{{ url_for('escolher_empresa_squad_feedback') }}">Enviar Feedback dos Objetivos a Aprovar</a>
+            <a class="dropdown-item" href="{{ url_for('gerar_krs_prompt') }}">Gerar KR's</a>
+            <a class="dropdown-item" href="{{ url_for('listar_krs_sugestao_gpt') }}">Listar KR's a aprovar</a>
+            <a class="dropdown-item" href="{{ url_for('escolher_empresa_squad_feedback_kr') }}">Enviar Feedback dos KR's a Aprovar</a>
+            <a class="dropdown-item" href="{{ url_for('gerar_macro_acao_sugestao') }}">Gerar Macro Ação</a>
+            <a class="dropdown-item" href="{{ url_for('listar_sugestao_macro_acao_gpt') }}">Listar Macro Ações a aprovar</a>
+            <a class="dropdown-item" href="{{ url_for('escolher_empresa_macro_acao_feedback') }}">Enviar Feedback das Macro Ações a Aprovar</a>
+            <a class="dropdown-item" href="{{ url_for('escolher_empresa_tarefa') }}">Gerar Tarefa</a>
+            <a class="dropdown-item" href="{{ url_for('listar_tarefas_metas_semanais') }}">Listar Tarefas e Metas Semanais</a>
+        </div>
+    </div>
 
-
-
-
+    <!-- Dropdown Sprint -->
+    <div class="dropdown">
+        <button class="btn btn-secondary dropdown-toggle" type="button">
+            Sprint
+        </button>
+        <div class="dropdown-menu">
+            <a class="dropdown-item" href="{{ url_for('escolher_empresa_tarefas_andamento') }}">Listar Tarefas em andamento</a>
+            <a class="dropdown-item" href="{{ url_for('escolher_empresa_tarefas_finalizadas')}}">Listar Tarefas Concluidas</a>
         </div>
     </div>
 
     {% block content %}{% endblock %}
-    <!-- jQuery, Popper.js, Bootstrap JS -->
-    <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/bootstrap.min.js') }}"></script>
+
+    <!-- Scripts -->
     <script src="{{ url_for('static', filename='main.js') }}"></script>
 </body>
+
 </html>

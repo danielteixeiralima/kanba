@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block content %}
+<form action="{{ url_for('escolher_empresa_tarefas_andamento') }}" method="post">
+    <label for="empresa">Escolha a Empresa:</label>
+    <select id="empresa" name="empresa" onchange="updateSquads()">
+        <option value="" disabled selected>Selecione</option>
+        {% for empresa in empresas %}
+        <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="squad">Escolha o Squad:</label>
+    <select id="squadSelect" name="squad">
+        <!-- Squads serão carregados dinamicamente aqui -->
+    </select>
+
+    <button type="submit">OK</button>
+</form>
+
+<script>
+    function updateSquads() {
+        var empresaId = document.getElementById("empresa").value;
+        fetch('/get_squads/' + empresaId)
+        .then(response => response.json())
+        .then(data => {
+            var squadSelect = document.getElementById("squadSelect");
+            squadSelect.innerHTML = ""; // Limpa as opções anteriores
+            data.forEach(squad => {
+                var option = document.createElement("option");
+                option.value = squad.id;
+                option.text = squad.nome;
+                squadSelect.appendChild(option);
+            });
+        });
+    }
+</script>
+{% endblock %}
