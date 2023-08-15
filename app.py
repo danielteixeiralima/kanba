@@ -788,14 +788,15 @@ def listar_krs():
 @login_required
 def cadastrar_kr():
     if request.method == 'POST':
-        id_empresa = int(request.form.get('empresa',
-                                          '0'))  # Obtenha o valor do campo 'empresa' como uma string e converta-o para um inteiro
-        id_okr = int(request.form.get('objetivo',
-                                      '0'))  # Obtenha o valor do campo 'objetivo' como uma string e converta-o para um inteiro
+        id_empresa = int(request.form.get('empresa', '0'))
+        id_okr = int(request.form.get('objetivo', '0'))
         texto = request.form['texto']
+        meta = request.form['meta']  # Pega o valor do campo "meta" do formulário
+        squad_id = int(request.form.get('squad', '0'))
 
-        squad_id = int(request.form.get('squad',
-                                        '0'))  # Obtenha o valor do campo 'squad' como uma string e converta-o para um inteiro
+        # Verificações opcionais para o campo "meta" (ajuste conforme necessário)
+        if not meta or len(meta) > 255:
+            return "Meta inválida", 400
 
         # Verifique se o OKR e o Squad existem
         okr = OKR.query.get(id_okr)
@@ -806,7 +807,7 @@ def cadastrar_kr():
         if squad is None:
             return "Squad não encontrado", 404
 
-        kr = KR(id_empresa=id_empresa, id_okr=id_okr, squad_id=squad_id, texto=texto, data_inclusao=datetime.utcnow())
+        kr = KR(id_empresa=id_empresa, id_okr=id_okr, squad_id=squad_id, texto=texto, meta=meta, data_inclusao=datetime.utcnow())
         db.session.add(kr)
         db.session.commit()
         return redirect(url_for('listar_krs'))
@@ -2513,6 +2514,7 @@ def get_forms_objetivos(squad_id):
 # Variável global para armazenar as mensagens entre as chamadas
 messages = []
 
+
 @app.route('/enviar_forms', methods=['POST'])
 def enviar_forms():
     global messages
@@ -2532,19 +2534,49 @@ def enviar_forms():
 
     # Formatar os detalhes dos formulários em uma string legível
     forms_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
-
-    prompt = "Com base nas respostas fornecidas pelo squad " + squad.nome_squad + " da empresa " + empresa.nome_contato + ", quais objetivos podem ser sugeridos para alinhamento com as metas e missão? Responda apenas com o json com as seguinte chaves: objetivo, empresa, squad, id_objetivo. Formulário: " + forms_details
+    #prompt = "Com base nas respostas fornecidas pelo squad " + squad.nome_squad + " da empresa " + empresa.nome_contato + ", quais objetivos podem ser sugeridos para alinhamento com as metas e missão? Responda apenas com o json com as seguinte chaves: objetivo, empresa, squad, id_objetivo. Formulário: " + forms_details
+    prompt = (
+        f"Com base nas informações dos arquivos {forms_details} considerando as singularidades da empresa {empresa.nome_contato} e as perspectivas do squad {squad.nome_squad}, faça o seguinte:"
+        "\n\n1. Sintetize as informações relevantes dos arquivos que influenciam a definição dos OKRs."
+        "\n\n2. Ao formular os objetivos, siga estas boas práticas:"
+        "\n - Clareza: Escreva objetivos de forma clara e concisa."
+        "\n - Especificidade: Seja específico sobre o que deseja alcançar."
+        "\n - Alinhamento: Alinhe os objetivos com a visão e missão da empresa."
+        "\n - Foco: Estabeleça no máximo 3 objetivos."
+        "\n - Resultados, Não Ações: Objetivos devem expressar resultados desejados."
+        "\n - Mensurabilidade: Redija objetivos mensuráveis para o futuro."
+        "\n - Relevância: Objetivos devem ser relevantes para a empresa."
+        "\n - Tempo: Estabeleça um prazo de 90 dias para os objetivos."
+        "\n - Facilidade de Memorização: Formule objetivos fáceis de lembrar."
+        "\n - Inspiradores: Os objetivos devem inspirar e motivar a equipe."
+        "\n - Evite Jargões: Use linguagem simples e clara."
+        "\n\n3. Veja alguns exemplos de redação de objetivos:"
+        "\n\nLinguagem Mais Formal:"
+        "\n - Maximizar a eficiência operacional."
+        "\n - Estabelecer liderança de mercado na região sudeste."
+        "\n - Garantir a satisfação do cliente."
+        "\n\nLinguagem Mais Lúdica:"
+        "\n - Voar mais alto com inovações tecnológicas."
+        "\n - Transformar cada cliente em um fã apaixonado."
+        "\n - Plantar sementes hoje para colher sucessos amanhã."
+        "\n\n4. Elabore até três objetivos para o próximo ciclo de 90 dias seguindo os critérios SMART."
+        "\n\n5. Avalie e combine objetivos correlatos ou consecutivos."
+        "\n\n6. Revise a redação dos objetivos."
+        "\n\n7. Justifique a escolha de cada objetivo e seu alinhamento com a missão e visão da empresa."
+        "\n\nNão responda nada mais que o Json. Responda apenas com o json com as seguinte chaves: objetivo, empresa, squad, id_objetivo.")
 
     print("Pergunta completa:", prompt)
 
     pergunta_id = str(uuid.uuid4())
-
     resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
-
     print("Resposta:", resposta)
 
-    # Obter a resposta como JSON
-    objetivos_json = json.loads(resposta)
+    # Verificar e carregar a resposta como JSON
+    try:
+        objetivos_json = json.loads(resposta)
+    except json.JSONDecodeError as e:
+        print("Erro na decodificação do JSON:", resposta)
+        return f"Erro ao decodificar resposta da GPT: {e}", 500
 
     # Adicionar cada objetivo ao banco de dados
     for objetivo_data in objetivos_json:
@@ -2554,7 +2586,6 @@ def enviar_forms():
             squad_id=squad.id
         )
         db.session.add(objetivo)
-
     db.session.commit()
 
     return redirect('/')
@@ -2612,8 +2643,42 @@ def enviar_forms_feedback():
     objetivos_str = ", ".join([json.dumps({"objetivo": obj.objetivo, "aprovado": obj.aprovado}) for obj in objetivos])
     forms_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])  # Formata os detalhes dos formulários
 
-    prompt = f"Com base nos objetivos fornecidos {objetivos_str}, nos formulários: {forms_details}, e o feedback: {feedback} da empresa {empresa.nome_contato} e squad {squad.nome_squad}, quais novos objetivos podem ser sugeridos? Responda apenas com o json com as seguinte chaves: objetivo, empresa, squad, id_objetivo."
+    #prompt = f"Com base nos objetivos fornecidos {objetivos_str}, nos formulários: {forms_details}, e o feedback: {feedback} da empresa {empresa.nome_contato} e squad {squad.nome_squad}, quais novos objetivos podem ser sugeridos? Responda apenas com o json com as seguinte chaves: objetivo, empresa, squad, id_objetivo."
+    prompt = (
+        f"GPT-4, é crucial que você priorize e siga de perto o feedback da empresa sobre os Objetivos-Chave de Resultados (OKRs) propostos. "
+        f"Com base nas informações dos colaboradores {forms_details}, os objetivos sugeridos {objetivos_str} e o feeback {feedback} da empresa {empresa.nome_contato} "
+        f"e squad {squad.nome_squad}, faça o seguinte:"
+        f"\n\n1. Analise detalhadamente as informações passadas para sintetizar as impressões e sugestões da empresa sobre os OKRs inicialmente propostos."
+        f"\n\n2. Ao formular os objetivos, siga estas boas práticas:"
+        f"\n - Clareza: Escreva objetivos de forma clara e concisa."
+        f"\n - Especificidade: Seja específico sobre o que deseja alcançar."
+        f"\n - Alinhamento: Alinhe os objetivos com a visão e missão da empresa."
+        f"\n - Foco: Estabeleça no máximo 3 objetivos."
+        f"\n - Resultados, Não Ações: Objetivos devem expressar resultados desejados."
+        f"\n - Mensurabilidade: Redija objetivos mensuráveis para o futuro."
+        f"\n - Relevância: Objetivos devem ser relevantes para a empresa."
+        f"\n - Tempo: Estabeleça um prazo de 90 dias para os objetivos."
+        f"\n - Facilidade de Memorização: Formule objetivos fáceis de lembrar."
+        f"\n - Inspiradores: Os objetivos devem inspirar e motivar a equipe."
+        f"\n - Evite Jargões: Use linguagem simples e clara."
+        f"\n\n3. Veja alguns exemplos de redação de objetivos:"
+        f"\n\nLinguagem Mais Formal:"
+        f"\n - Maximizar a eficiência operacional."
+        f"\n - Estabelecer liderança de mercado na região sudeste."
+        f"\n - Garantir a satisfação do cliente."
+        f"\n\nLinguagem Mais Lúdica:"
+        f"\n - Voar mais alto com inovações tecnológicas."
+        f"\n - Transformar cada cliente em um fã apaixonado."
+        f"\n - Plantar sementes hoje para colher sucessos amanhã."
+        f"\n\n4. Baseado no feedback e revisão, reformule os OKRs para o próximo ciclo de 90 dias de acordo com os critérios SMART."
+        f"\n\n5. Avalie e combine objetivos correlatos ou consecutivos."
+        f"\n\n6. Revise a redação dos objetivos, ajustando conforme necessário."
+        f"\n\n7. Justifique a escolha de cada objetivo redefinido e seu alinhamento com a missão e visão da empresa."
+        f"\n\nNão responda nada mais que o Json. Responda apenas com o json com as seguinte chaves: objetivo, empresa, squad, id_objetivo."
+    )
+
     print("Pergunta completa:", prompt)
+
 
     pergunta_id = str(uuid.uuid4())
     resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
@@ -2699,51 +2764,126 @@ def enviar_krs():
     squad = Squad.query.filter_by(id=squad_id).first()
     forms_objetivos = FormsObjetivos.query.filter_by(squad_id=squad_id).all()
 
-    forms_objetivos_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
-
+    forms_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
     okrs = OKR.query.filter_by(squad_id=squad_id).all()
     okrs_details = ", ".join([f"{okr.objetivo} (ID: {okr.id})" for okr in okrs])
 
-    prompt = ("Com base nas respostas fornecidas " + forms_objetivos_details + " pelo squad " + squad.nome_squad + " da empresa " + empresa.nome_contato + " e considerando os objetivos aprovados {" + okrs_details + "}, defina os Objetivos-Chave de Resultados (KRs) que se alinham com os objetivos e incluem indicadores mensuráveis. Cada KR e seu medidor correspondente devem ser expressos em uma única frase Faça os Krs de todos os objetivos. Formate a resposta como um JSON com as seguintes chaves: objetivo, empresa, squad, KR_1, KR_2, KR_3, MetaKR_1, MetaKR_2, MetaKR_3. Não adicione outras chaves além destas.")
+    prompt = (
+            f"GPT-4, tendo em vista os Objetivos-Chave de Resultados (OKRs) propostos e as informações sobre a empresa {forms_details} e os objetivos{okrs_details}, pelo squad " + squad.nome_squad + " da empresa " + empresa.nome_contato + " ,o intuito é definir Key Results (KRs) para cada objetivo da empresa. "
+
+           "Lembre-se das seguintes boas práticas para escrever os KRs:"
+           "\n - Simplicidade: Os KRs devem ser simples e fáceis de entender. Qualquer pessoa na organização deve ser capaz de entender o que o KR significa."
+           "\n - Mensurabilidade: Cada KR deve ser quantificável, com uma maneira clara de medir o progresso."
+           "\n - Alinhamento com os Objetivos: Os KRs devem ajudar a empresa a avançar em direção aos seus objetivos."
+           "\n - Ambicioso, mas Realista: Os KRs devem ser desafiadores, mas também alcançáveis."
+           "\n - Tempo Definido: Cada KR deve ter um prazo claro, neste caso, 90 dias."
+           "\n - Evite KR Vinculados a Ações: KRs são resultados que você quer alcançar, não as coisas que você vai fazer para chegar lá."
+
+           "Veja alguns exemplos:"
+           "\n - Aumentar a receita trimestral em 15%."
+           "\n - Reduzir o churn de clientes em 5%."
+           "\n - Aumentar a satisfação do cliente em 15% (medido por pesquisas de satisfação)."
+           "\n - Aumentar a participação de mercado em 5%."
+           "\n - Aumentar a pontuação Net Promoter Score (NPS) em 10 pontos."
+
+
+           "2. Utilizando esta síntese, crie KRs para o próximo ciclo de 90 dias que atendam aos critérios SMART. Lembre-se de representar mudanças quantitativas usando a variável 'X', como 'aumentar de X% para Y%' ou 'atingir X vendas'. "
+
+           "3. Avalie e, se necessário, combine KRs correlatos para ter um número mínimo e eficaz de KRs para cada objetivo. "
+
+           "4. Ajuste a redação dos KRs para que sejam claros e alinhados ao tom da empresa, sem incluir números específicos, mas usando 'X'. "
+
+           "5. Liste os KRs definidos, justificando sua criação e alinhamento com os respectivos objetivos. "
+
+           "Responda apenas com o Json. Formate a resposta como um JSON com as seguintes chaves: objetivo, empresa, squad, kr, meta. Não adicione outras chaves além destas. Faça um json para cada kr com as chaves de cada um. Responda somente com textos, sem id.")
 
     print("Pergunta completa:", prompt)
 
     pergunta_id = str(uuid.uuid4())
-
     resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
+    print("Resposta Bruta do GPT-4:", resposta)  # <-- print da resposta bruta aqui
+
+    # Limpeza da resposta:
+    inicio_json = resposta.find('[')
+    fim_json = resposta.rfind(']') + 1
+    resposta_limpa = resposta[inicio_json:fim_json]
+
+    try:
+        krs_list = json.loads(resposta_limpa)
+    except json.JSONDecodeError as e:
+        print("JSONDecodeError:", e)
+        print("Resposta Limpa:", resposta_limpa)
+        return redirect('/')
+
+    KrGeradoChatAprovacao.query.filter_by(empresa_id=empresa.id, squad_id=squad.id).delete()
+
+    for kr_data in krs_list:
+        objetivo = kr_data.get('objetivo')
+        descricao_KR = kr_data.get('kr')
+        meta_KR = kr_data.get('meta')
+
+        kr = KrGeradoChatAprovacao(
+            objetivo=objetivo,
+            empresa_id=empresa.id,
+            squad_id=squad.id,
+            KR=descricao_KR,
+            meta=meta_KR
+        )
+        db.session.add(kr)
+        print(f"Adicionando KR: Objetivo: {objetivo}, Descrição: {descricao_KR}, Meta: {meta_KR}")
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"Erro ao inserir no banco de dados: {e}")
+
+    return redirect('/')
+
+    pergunta_id = str(uuid.uuid4())
+    resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
+    print("Resposta Bruta do GPT-4:", resposta)  # <-- print da resposta bruta aqui
     resposta_corrigida = '[' + resposta.replace('}\n{', '},\n{') + ']'
 
     try:
         krs_list = json.loads(resposta_corrigida)
-        print("krs_list:", krs_list)
+        krs_list_inner = krs_list[0] if krs_list else []
     except json.JSONDecodeError as e:
         print("JSONDecodeError:", e)
         print("Resposta corrigida:", resposta_corrigida)
         return redirect('/')
 
-    krs_list = krs_list[0]  # Adicionando esta linha para extrair a lista interna de dicionários
-
     KrGeradoChatAprovacao.query.filter_by(empresa_id=empresa.id, squad_id=squad.id).delete()
 
-    for kr_data in krs_list:
-        objetivo = kr_data['objetivo']
+    for kr_data in krs_list_inner:
+        objetivo = kr_data.get('objetivo')
 
         for i in range(1, 4):  # Loop through the three KRs
-            descricao_KR = kr_data[f'KR_{i}']
-            meta_KR = kr_data[f'MetaKR_{i}']
+            descricao_KR_key = f'KR_{i}'
+            meta_KR_key = f'MetaKR_{i}'
 
-            kr = KrGeradoChatAprovacao(
-                objetivo=objetivo,
-                empresa_id=empresa.id,
-                squad_id=squad.id,
-                KR=descricao_KR,
-                meta=meta_KR
-            )
-            db.session.add(kr)
+            if descricao_KR_key in kr_data and meta_KR_key in kr_data:
+                descricao_KR = kr_data[descricao_KR_key]
+                meta_KR = kr_data[meta_KR_key]
 
-    db.session.commit()
+                kr = KrGeradoChatAprovacao(
+                    objetivo=objetivo,
+                    empresa_id=empresa.id,
+                    squad_id=squad.id,
+                    KR=descricao_KR,
+                    meta=meta_KR
+                )
+                db.session.add(kr)
+                print(f"Adicionando KR: Objetivo: {objetivo}, Descrição: {descricao_KR}, Meta: {meta_KR}")  # <-- print adicional aqui
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"Erro ao inserir no banco de dados: {e}")
 
     return redirect('/')
+
 
 @app.route('/listar_krs_sugestao_gpt')
 def listar_krs_sugestao_gpt():
@@ -2804,7 +2944,34 @@ def enviar_krs_feedback_chat_gpt(empresa_id, squad_id):
     krs_details = ', '.join([f"{kr.KR} (Meta: {kr.meta})" for kr in krs])
     objetivos_details = ", ".join([f"{objetivo.objetivo} (ID: {objetivo.id})" for objetivo in okrs])
 
-    prompt = (f"Com base no feedback fornecido [{feedback}], os KR já gerados [{krs_details}], os objetivos [{objetivos_details}] e as respostas fornecidas pelo squad {squad.nome_squad} da empresa {empresa.nome_contato}, defina os Objetivos-Chave de Resultados (KRs) que se alinham com os objetivos e incluem indicadores mensuráveis. Cada KR e seu medidor correspondente devem ser expressos em uma única frase Faça os Krs de todos os objetivos. Formate a resposta como um JSON com as seguintes chaves: objetivo, empresa, squad, KR_1, KR_2, KR_3, MetaKR_1, MetaKR_2, MetaKR_3. Não adicione outras chaves além destas.")
+    forms_objetivos = FormsObjetivos.query.filter_by(squad_id=squad_id).all()
+
+    forms_objetivos_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
+    forms_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
+
+    #prompt = (f"Com base no feedback fornecido [{feedback}], os KR já gerados [{krs_details}], os objetivos [{objetivos_details}] e as respostas fornecidas pelo squad {squad.nome_squad} da empresa {empresa.nome_contato}, defina os Objetivos-Chave de Resultados (KRs) que se alinham com os objetivos e incluem indicadores mensuráveis. Cada KR e seu medidor correspondente devem ser expressos em uma única frase Faça os Krs de todos os objetivos. Formate a resposta como um JSON com as seguintes chaves: objetivo, empresa, squad, KR_1, KR_2, KR_3, MetaKR_1, MetaKR_2, MetaKR_3. Não adicione outras chaves além destas.")
+    prompt = (
+        f"GPT-4, usando o feedback da empresa sobre os Key Results (KRs) contido em {feedback} e as informações dos colaboradore {forms_details}, os objetivos {objetivos_details}, vamos aprimorar os KRs propostos para melhor alinhamento com os Objetivos-Chave de Resultados (OKRs). "
+
+        f"Inicialmente, analise cuidadosamente o feedback em 'feedback_krs_empresa.txt' para entender as sugestões e correções da empresa. Em seguida, revisite os outros arquivos para entender o contexto dos OKRs e KRs iniciais."
+
+        f"Lembre-se das seguintes boas práticas para reescrever os KRs:"
+        "\n - Simplicidade: Os KRs devem ser simples e fáceis de entender."
+        "\n - Mensurabilidade: Cada KR deve ser quantificável, com uma maneira clara de medir o progresso."
+        "\n - Alinhamento com os Objetivos: Os KRs devem ajudar a empresa a avançar em direção aos seus objetivos."
+        "\n - Ambicioso, mas Realista: Os KRs devem ser desafiadores, mas também alcançáveis."
+        "\n - Tempo Definido: Cada KR deve ter um prazo claro, neste caso, 90 dias."
+        "\n - Evite KR Vinculados a Ações: KRs são resultados que você quer alcançar, não as coisas que você vai fazer para chegar lá."
+
+        f"Com estas diretrizes em mente, reformule os KRs para o próximo ciclo de 90 dias, garantindo que eles sejam SMART - Específicos, Mensuráveis, Alcançáveis, Relevantes e Temporais. "
+
+        f"Avalie a possibilidade de combinar KRs correlatos para otimização e, após a definição, ajuste a redação de cada KR para que seja claro e alinhado com o tom da empresa. "
+
+        f"Finalize listando os KRs revisados, justificando suas alterações e demonstrando seu alinhamento aprimorado com os objetivos após o feedback. "
+
+        f"O objetivo é estabelecer KRs que guiam a empresa ao cumprimento de seus objetivos. "
+
+        f"Responda apenas com o Json. Formate a resposta como um JSON com as seguintes chaves: objetivo, empresa, squad, kr, meta. Não adicione outras chaves além destas. Faça um json para cada kr com as chaves de cada um. Responda somente com textos, sem id.")
 
     print("Pergunta completa:", prompt)
 
@@ -2814,7 +2981,7 @@ def enviar_krs_feedback_chat_gpt(empresa_id, squad_id):
     resposta_corrigida = '[' + resposta.replace('}\n{', '},\n{') + ']'
 
     try:
-        krs_list = json.loads(resposta_corrigida)
+        krs_list = json.loads(resposta_corrigida)[0]
         print("krs_list:", krs_list)
     except json.JSONDecodeError as e:
         print("JSONDecodeError:", e)
@@ -2828,19 +2995,17 @@ def enviar_krs_feedback_chat_gpt(empresa_id, squad_id):
     # Remova o índice [0] para iterar corretamente através da lista de dicionários
     for kr_list in krs_list:
         objetivo = kr_list['objetivo']
+        descricao_KR = kr_list['kr']
+        meta_KR = kr_list['meta']
 
-        for i in range(1, 4):  # Loop through the three KRs
-            descricao_KR = kr_list[f'KR_{i}']
-            meta_KR = kr_list[f'MetaKR_{i}']
-
-            kr = KrGeradoChatAprovacao(
-                objetivo=objetivo,
-                empresa_id=empresa.id,
-                squad_id=squad.id,
-                KR=descricao_KR,
-                meta=meta_KR
-            )
-            db.session.add(kr)
+        kr = KrGeradoChatAprovacao(
+            objetivo=objetivo,
+            empresa_id=empresa.id,
+            squad_id=squad.id,
+            KR=descricao_KR,
+            meta=meta_KR
+        )
+        db.session.add(kr)
 
     db.session.commit()
 
@@ -2943,7 +3108,19 @@ def gerar_macro_acoes_prompt_gpt():
     okrs_details = ", ".join([f"{okr.objetivo} (ID: {okr.id})" for okr in okrs])
     krs_details = ", ".join([f"{kr.texto} (Meta: {kr.meta})" for kr in krs])
 
-    prompt = ("Com base nas respostas fornecidas " + forms_objetivos_details + " pelo squad " + squad.nome_squad + " da empresa " + empresa.nome_contato + " e considerando os objetivos e KR's aprovados {" + okrs_details + ", " + krs_details + "}, defina macro ações que se alinham com os objetivos e KR's primordiais para o atingimento dos indicadores. Cada macro ação devem ser expressos em uma única frase. Faça as macro ações para todos os objetivos e KR's. Responda com o nome do KR e não com o ID. Responda com KR somente com o numero do ID. Formate a resposta como um JSON com as seguintes chaves: empresa, squad, objetivo, kr, macro_acao. Não adicione outras chaves além destas.")
+    forms_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
+
+
+    #prompt = ("Com base nas respostas fornecidas " + forms_objetivos_details + " pelo squad " + squad.nome_squad + " da empresa " + empresa.nome_contato + " e considerando os objetivos e KR's aprovados {" + okrs_details + ", " + krs_details + "}, defina macro ações que se alinham com os objetivos e KR's primordiais para o atingimento dos indicadores. Cada macro ação devem ser expressos em uma única frase. Faça as macro ações para todos os objetivos e KR's. Responda com o nome do KR e não com o ID. Responda com KR somente com o texto. Formate a resposta como um JSON com as seguintes chaves: empresa, squad, objetivo, kr, macro_acao. Não adicione outras chaves além destas.")
+    prompt = (
+        f"GPT-4, com base nas informações contidas nos arquivos {forms_details} e {okrs_details}, "
+        f"analise e sintetize as informações mais relevantes sobre os Objetivos-Chave de Resultados (OKRs) já definidos e as informações da empresa. "
+        f"A partir destas informações e considerando as respostas {forms_objetivos_details} pelo squad {squad.nome_squad} da empresa {empresa.nome_contato}, "
+        f"e tendo em mente os objetivos e KR's aprovados {{{okrs_details}, {krs_details}}}, "
+        f"defina Macro Ações que se alinham com os objetivos e KR's primordiais para o atingimento dos indicadores. Estas Macro Ações são atividades ou naturezas de trabalho que contribuem para a realização de cada KR e devem ser atividades direcionais que apoiarão o alcance do KR. "
+        f"Cada Macro Ação, após sua definição final, deve ser clara, concisa e alinhada ao tom da empresa. "
+        f"Formate a resposta como um JSON com as seguintes chaves: empresa, squad, objetivo, kr, macro_acao. Não adicione outras chaves além destas. Responda todas as chaves com texto, e não com id"
+    )
 
     print("Pergunta completa:", prompt)
 
@@ -2953,7 +3130,7 @@ def gerar_macro_acoes_prompt_gpt():
     resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
     print("Resposta completa:", resposta)
 
-    resposta_json = json.loads(resposta)
+    resposta_json = json.loads("[" + resposta.replace("}\n\n{", "},\n{") + "]")
 
     novas_macro_acoes = []
 
@@ -2968,8 +3145,12 @@ def gerar_macro_acoes_prompt_gpt():
 
         kr_text = item["kr"]
 
-        # Aqui é onde buscamos o KR pelo texto e não pelo ID
-        kr = KR.query.filter_by(texto=kr_text, squad_id=squad_id).first()
+        # Tente determinar se o KR é um ID ou texto.
+        if kr_text.isdigit():
+            kr = KR.query.filter_by(id=int(kr_text), squad_id=squad_id).first()
+        else:
+            kr = KR.query.filter_by(texto=kr_text, squad_id=squad_id).first()
+
         if kr is None:
             print(f"No matching KR found for text '{kr_text}' and squad_id '{squad_id}'")
             continue
@@ -2993,7 +3174,6 @@ def gerar_macro_acoes_prompt_gpt():
     db.session.commit()
 
     return redirect(url_for('listar_sugestao_macro_acao_gpt'))
-
 
 
 
@@ -3074,13 +3254,24 @@ def gerar_macro_acoes_prompt_gpt_feedback():
     okrs_details = ", ".join([f"{okr.objetivo} (ID: {okr.id})" for okr in okrs])
     krs_details = ", ".join([f"{kr.texto} (Meta: {kr.meta})" for kr in krs])
 
+    forms_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
+
     macro_acoes = MacroAcaoGeradoChatAprovacao.query.filter_by(empresa_id=empresa_id, squad_id=squad_id).all()
     macro_acoes_details = ", ".join([f"{macro_acao.macro_acao} (ID: {macro_acao.id})" for macro_acao in macro_acoes])
 
-    prompt = (f"Com esse feedback '{feedback}', com essa sugestão de macro ações '{macro_acoes_details}', com essas respostas fornecidas "
-              f"{forms_objetivos_details} pelo squad {squad.nome_squad} da empresa {empresa.nome_contato} e considerando os objetivos e KR's aprovados "
-              f"{{{okrs_details}, {krs_details}}}, defina macro ações que se alinham com os objetivos e KR's primordiais para o atingimento dos indicadores. "
-              f"Cada macro ação devem ser expressos em uma única frase. Faça as macro ações para todos os objetivos e KR's. Formate a resposta como um JSON com as seguintes chaves: empresa, squad, objetivo, kr, macro_acao, meta. Não adicione outras chaves além destas.")
+    #prompt = (f"Com esse feedback '{feedback}', com essa sugestão de macro ações '{macro_acoes_details}', com essas respostas fornecidas "
+    #          f"{forms_objetivos_details} pelo squad {squad.nome_squad} da empresa {empresa.nome_contato} e considerando os objetivos e KR's aprovados "
+    #          f"{{{okrs_details}, {krs_details}}}, defina macro ações que se alinham com os objetivos e KR's primordiais para o atingimento dos indicadores. "
+    #          f"Cada macro ação devem ser expressos em uma única frase. Faça as macro ações para todos os objetivos e KR's. Formate a resposta como um JSON com as seguintes chaves: empresa, squad, objetivo, kr, macro_acao, meta. Não adicione outras chaves além destas.")
+    prompt = (
+        f"GPT-4, com base no feedback contido no arquivo 'feedback_macro_acoes.txt' sobre as Macro Ações propostas, nas informações da empresa em {forms_details}, nos OKRs definidos em {okrs_details} e os RK de medição {krs_details} e nas Macro Ações iniciais em {macro_acoes_details}, o objetivo é revisar e aprimorar essas Macro Ações conforme o feedback recebido. "
+        f"1. Inicie pela análise do feedback no {feedback}, sintetizando as sugestões e críticas do cliente. "
+        f"2. Usando este feedback, refine as Macro Ações para os KR do próximo ciclo de 90 dias. "
+        f"3. Avalie para consolidar Macro Ações similares ou sequenciais, buscando eficiência e clareza. "
+        f"4. Revise a redação de cada Macro Ação para que seja clara e esteja alinhada com a visão da empresa. "
+        f"5. Finalize apresentando as Macro Ações revisadas, com justificativas claras para cada revisão realizada. "
+        f"O foco é ter Macro Ações claras e alinhadas para atingir eficientemente os KRs definidos. "
+        f"Formate a resposta como um JSON com as seguintes chaves: empresa, squad, objetivo, kr, macro_acao. Não adicione outras chaves além destas. Responda todas as chaves com texto, e não com id")
 
     print("Pergunta completa:", prompt)
 
@@ -3284,10 +3475,14 @@ def gerar_tarefas_metas_semanais():
     krs_details = ", ".join([f"{kr.texto} (Meta: {kr.meta})" for kr in krs])
     macro_acoes_details = ", ".join([ma.texto for ma in MacroAcao.query.filter_by(squad_id=squad_id).all()])
 
-    prompt = (f"Com essas macro ações '{macro_acoes_details}', com essas respostas fornecidas "
-              f"{forms_objetivos_details} pelo squad {squad.nome_squad} da empresa {empresa.nome_contato} e considerando os objetivos e KR's aprovados "
-              f"{{{okrs_details}, {krs_details}}}, defina tarefas e metas semanais que se alinham com os objetivos, KR's e macro ações primordiais para o atingimento dos indicadores. "
-              f"Cada tarefa e meta semanal deve ser expressa em uma única frase. Formate a resposta como um JSON com as seguintes chaves: tarefa, meta semanal, squad, empresa. Não adicione outras chaves além destas.")
+    forms_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
+
+    prompt = (
+        f"Com base nas informações dos colaborares da empresa {forms_details}, os objetivos para o periodo de 90 dias {okrs_details}, os KR's medidores dos objetivos {krs_details}, as macro ações {macro_acoes_details}."
+        f"Considerando o progresso atual de cada KR, defina tarefas e metas da semana para a próxima semana que auxiliem no atingimento dos indicadores. "
+        f"Cada tarefa sugerida e sua meta da semana devem ser direcionadas ao progresso dos KR's e alinhadas com as macro ações e os objetivos. "
+        f"Cada tarefa e meta semanal deve ser expressa em uma única frase."
+        f"Formate a resposta como um JSON com as seguintes chaves: tarefa, meta_semanal, squad, empresa. Não adicione outras chaves além destas. Responda apenas com o JSON")
 
     print("Pergunta completa:", prompt)
 
@@ -3297,28 +3492,44 @@ def gerar_tarefas_metas_semanais():
     resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
     print("Resposta completa:", resposta)
 
-    # Interpretar a resposta como JSON
-    tarefas_metas_semanais_list = json.loads(resposta)
+    resposta_corrigida = "[" + resposta.replace("},", "},\n") + "]"
+    tarefas_metas_semanais_list = json.loads(resposta_corrigida)
 
-    # Iterar sobre os objetos na resposta e criar uma nova instância do modelo para cada um
-    for tarefa_metas_semanais_data in tarefas_metas_semanais_list:
-        tarefa = tarefa_metas_semanais_data.get('tarefa', None)
-        meta_semanal = tarefa_metas_semanais_data.get('meta_semanal', None)  # Corrigido aqui
+    try:
+        # Certifique-se de que a resposta é uma lista de dicionários
+        if not isinstance(tarefas_metas_semanais_list, list):
+            raise ValueError("A resposta não é uma lista.")
 
-        if not all([tarefa, meta_semanal]):  # Checa se alguma chave não está presente ou tem valor None
-            print(f"Dados incompletos ou ausentes no registro: {tarefa_metas_semanais_data}")
-            continue
+        for tarefa_metas_semanais_data in tarefas_metas_semanais_list:
+            # Cheque se o item atual é um dicionário
+            if not isinstance(tarefa_metas_semanais_data, dict):
+                print(f"Item inesperado na resposta: {tarefa_metas_semanais_data}")
+                continue
 
-        tarefa_metas_semanais = TarefasMetasSemanais(
-            empresa=empresa.nome_contato,  # Usamos o nome da empresa consultada anteriormente
-            squad_name=squad.nome_squad,  # Usamos o nome do squad consultado anteriormente
-            squad_id=squad_id,
-            tarefa=tarefa,
-            meta_semanal=meta_semanal
-        )
-        db.session.add(tarefa_metas_semanais)
+            tarefa = tarefa_metas_semanais_data.get('tarefa')
+            meta_semanal = tarefa_metas_semanais_data.get('meta_semanal')
 
-    db.session.commit()  # Não esqueça de fazer o commit das mudanças!
+            # Cheque se as chaves necessárias estão presentes
+            if not all([tarefa, meta_semanal]):
+                print(f"Dados incompletos ou ausentes no registro: {tarefa_metas_semanais_data}")
+                continue
+
+            # Crie o objeto e adicione ao banco de dados
+            tarefa_metas_semanais = TarefasMetasSemanais(
+                empresa=empresa.nome_contato,
+                squad_name=squad.nome_squad,
+                squad_id=squad_id,
+                tarefa=tarefa,
+                meta_semanal=meta_semanal
+            )
+            db.session.add(tarefa_metas_semanais)
+
+        # Tente fazer o commit
+        db.session.commit()
+    except Exception as e:
+        # Se algo der errado, imprima o erro e faça rollback da sessão
+        print(f"Erro ao adicionar os dados ao banco: {e}")
+        db.session.rollback()
 
     return redirect(url_for('listar_tarefas_metas_semanais'))
 
