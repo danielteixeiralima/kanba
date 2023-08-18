@@ -191,25 +191,23 @@ class MacroAcao(db.Model):
 class TarefasMetasSemanais(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     empresa = db.Column(db.String(255), nullable=False)
-    squad_name = db.Column(db.String(255), nullable=False)  # Aqui mudamos para squad_name
+    squad_name = db.Column(db.String(255), nullable=False)
     squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
     tarefa = db.Column(db.Text, nullable=False)
     meta_semanal = db.Column(db.Text, nullable=False)
     data_inclusao = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     data_conclusao = db.Column(db.DateTime)
     squad = db.relationship('Squad', backref='tarefas')
+    subtarefas = db.Column(db.JSON)
 
-    def __init__(self, empresa, squad_name, squad_id, tarefa, meta_semanal, data_conclusao=None):
+    def init(self, empresa, squad_name, tarefa, meta_semanal, data_conclusao=None, subtarefas=None):
         self.empresa = empresa
-        self.squad_name = squad_name
-        self.squad_id = squad_id  # Atribua o valor do argumento aqui
+        self.squad_name = squad_name  # Atualizado aqui também
         self.tarefa = tarefa
         self.meta_semanal = meta_semanal
         self.data_conclusao = data_conclusao
-
-    def __repr__(self):
+    def repr(self):
         return f'<Tarefa e Meta Semanal {self.id}: {self.tarefa}>'
-
 
 
 
@@ -372,27 +370,29 @@ class Trello(db.Model):
 class TarefasAndamento(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     empresa = db.Column(db.String(255), nullable=False)
-    squad_name = db.Column(db.String(255), nullable=False)  # Aqui mudamos para squad_name
+    squad_name = db.Column(db.String(255), nullable=False)
     squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
     tarefa = db.Column(db.Text, nullable=False)
     data_inclusao = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     data_conclusao = db.Column(db.DateTime)
+    subtarefas = db.Column(db.JSON)  # Campo JSON para subtarefas
     squad = db.relationship('Squad', backref='tarefas_atuais')
-
 
 class TarefasFinalizadas(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     empresa = db.Column(db.String(255), nullable=False)
-    squad_name = db.Column(db.String(255), nullable=False)  # Aqui mudamos para squad_name
+    squad_name = db.Column(db.String(255), nullable=False)
     squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
     tarefa = db.Column(db.Text, nullable=False)
     data_inclusao = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     data_conclusao = db.Column(db.DateTime)
+    subtarefas = db.Column(db.JSON)  # Campo JSON para subtarefas
     squad = db.relationship('Squad', backref='tarefas_concluidas')
 
 
 
 '''
+
 class TarefasAtuais(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     empresa = db.Column(db.String(255), nullable=False)
@@ -413,13 +413,6 @@ class TarefasConcluidas(db.Model):
     data_conclusao = db.Column(db.DateTime)
     squad = db.relationship('Squad', backref='tarefas_concluidas')
     
-
-
-
-
-
-
-
 
 '''
 

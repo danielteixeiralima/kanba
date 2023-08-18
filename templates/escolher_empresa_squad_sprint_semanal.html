@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Montar Sprint da Semana</title>
+    <script>
+
+    window.onload = function() {
+            // Inicializar a variável empresasTokens no localStorage
+            const empresasTokens = [
+                {
+                    nome: "Sette7",
+                    token: 'Bearer 1/1198735305571370:365e53e913a327a68486518d9fa4363e',
+                    workspace: '1205278753339325',
+                    team: '1205278753339327'
+                },
+                {
+                  nome: "ES360",
+                  token: 'Bearer 1/1150237826145564:8aa093214a72b8a8c73eff3cb5a777ac',
+                  workspace: '16363265495050',
+                  team: '1205288598041717'
+                }
+                // Adicione mais empresas e tokens conforme necessário
+            ];
+            localStorage.setItem('empresasTokens', JSON.stringify(empresasTokens));
+            console.log("dsia")
+        };
+
+        function updateSquads() {
+            const empresaId = document.getElementById('empresa_id').value;
+            fetch('/get_squads_sprint/' + empresaId)
+                .then(response => response.json())
+                .then(data => {
+                    const squadDropdown = document.getElementById('squad_id');
+                    squadDropdown.innerHTML = "";
+                    data.forEach(squad => {
+                        const option = document.createElement('option');
+                        option.value = squad.id;
+                        option.innerText = squad.nome;
+                        squadDropdown.appendChild(option);
+                    });
+                });
+        }
+
+        async function runAsanaFunctions(event) {
+            event.preventDefault();
+            await fetchAsanaTasksAndCompare();
+            document.querySelector('form').submit();
+            window.addEventListener('load', () => {
+                updateSquads();
+            });
+        }
+
+        async function fetchAsanaTasksAndCompare() {
+            const asanaTasks = await fetchAsanaTasks();
+            const asanaConcluidas = await fetchAsanaTasksConcluidas();
+            const dbTasks = await fetchTarefasAtuais();
+            const dbTasksConc = await fetchTarefasFinalizadas();
+            await registerTasksInDatabase(asanaTasks);
+            await registerTasksInDatabaseConcluidos(asanaConcluidas)
+
+            const asanaTaskNames = asanaTasks.map(task => task.tarefa);
+            const tasksToDelete = dbTasks.filter(dbTask => !asanaTaskNames.includes(dbTask.tarefa));
+            for (const task of tasksToDelete) {
+                const deletionResult = await deleteTarefa(task.id);
+            }
+
+            const asanaTaskNamesConc = asanaConcluidas.map(task => task.tarefa);
+            console.log(asanaTaskNamesConc)
+            const tasksToDeleteConc = dbTasksConc.filter(dbTasksConc => !asanaTaskNamesConc.includes(dbTasksConc.tarefa));
+            for (const task of tasksToDeleteConc) {
+                const deletionResultConc = await deleteTarefaConcluidos(task.id);
+            }
+
+        }
+
+
+
+        async function registerTasksInDatabase(tasks) {
+            const response = await fetch('/cadastrar_tarefas_atuais', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ tarefas: tasks })
+            });
+            return response.json();
+        }
+
+        async function fetchAsanaTasks() {
+            const plataforma = localStorage.getItem('plataformaAsana');
+            const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+            const allTasks = [];
+            async function getSquadId(squadName, empresaName) {
+                const response = await fetch('/get_squad_id?squad_name=' + encodeURIComponent(squadName) + '&empresa_name=' + encodeURIComponent(empresaName));
+                const data = await response.json();
+                return data.success ? data.squad_id : null;
+            }
+            for (const empresa of empresasTokens) {
+                const workSette = empresa.workspace;
+                const projectsResponse = await fetch(`https://app.asana.com/api/1.0/workspaces/${workSette}/projects?archived=false`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': empresa.token,
+                        'Accept': 'application/json'
+                    }
+                });
+                const projectsData = await projectsResponse.json();
+                for (const project of projectsData.data) {
+                    const sectionsResponse = await fetch(`https://app.asana.com/api/1.0/projects/${project.gid}/sections`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': empresa.token,
+                            'Accept': 'application/json'
+                        }
+                    });
+                    const sectionsData = await sectionsResponse.json();
+                    const completedTasksSection = sectionsData.data.find(section => section.name === "Tarefas em andamento");
+                    if (completedTasksSection) {
+                        const tasksResponse = await fetch(`https://app.asana.com/api/1.0/sections/${completedTasksSection.gid}/tasks`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': empresa.token,
+                                'Accept': 'application/json'
+                            }
+                        });
+                        const tasksData = await tasksResponse.json();
+                        for (const task of tasksData.data) {
+                            const taskDetailResponse = await fetch(`https://app.asana.com/api/1.0/tasks/${task.gid}`, {
+                                method: 'GET',
+                                headers: {
+                                    'Authorization': empresa.token,
+                                    'Accept': 'application/json'
+                                }
+                            });
+                            const taskDetailData = await taskDetailResponse.json();
+                            const subtasksResponse = await fetch(`https://app.asana.com/api/1.0/tasks/${task.gid}/subtasks`, {
+                                method: 'GET',
+                                headers: {
+                                    'Authorization': empresa.token,
+                                    'Accept': 'application/json'
+                                }
+                            });
+                            const subtasksData = await subtasksResponse.json();
+                            const squadId = await getSquadId(project.name, empresa.nome);
+                            if (squadId) {
+                                allTasks.push({
+                                    empresa: empresa.nome,
+                                    subtarefas: subtasksData.data.map(subtask => subtask.name),
+                                    squad_name: project.name,
+                                    squad_id: squadId,
+                                    tarefa: taskDetailData.data.name
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            return allTasks;
+        }
+
+        async function fetchAsanaTasksConcluidas() {
+            const plataforma = localStorage.getItem('plataformaAsana');
+            const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+            const allTasks = [];
+            const formatDate = (dateString) => {
+                const date = new Date(dateString);
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const year = date.getFullYear();
+                return `${day}/${month}/${year}`;
+            };
+
+            async function getSquadId(squadName, empresaName) {
+                let response = await fetch('/get_squad_id?squad_name=' + encodeURIComponent(squadName) + '&empresa_name=' + encodeURIComponent(empresaName));
+                let data = await response.json();
+                if (data.success) {
+                    return data.squad_id;
+                } else {
+                    console.error('Erro ao obter squad_id:', data.error);
+                    return null;
+                }
+            }
+
+            for (const empresa of empresasTokens) {
+                const workSette = empresa.workspace;
+                const projectsResponse = await fetch(`https://app.asana.com/api/1.0/workspaces/${workSette}/projects?archived=false`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': empresa.token,
+                        'Accept': 'application/json'
+                    }
+                });
+                const projectsData = await projectsResponse.json();
+                for (const project of projectsData.data) {
+                    const projectId = project.gid;
+                    const sectionsResponse = await fetch(`https://app.asana.com/api/1.0/projects/${projectId}/sections`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': empresa.token,
+                            'Accept': 'application/json'
+                        }
+                    });
+                    const sectionsData = await sectionsResponse.json();
+                    const completedTasksSection = sectionsData.data.find(section => section.name === "Tarefas concluídas");
+                    if (completedTasksSection) {
+                        const tasksResponse = await fetch(`https://app.asana.com/api/1.0/sections/${completedTasksSection.gid}/tasks`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': empresa.token,
+                                'Accept': 'application/json'
+                            }
+                        });
+                        const tasksData = await tasksResponse.json();
+                        for (const task of tasksData.data) {
+                            const taskDetailResponse = await fetch(`https://app.asana.com/api/1.0/tasks/${task.gid}`, {
+                                method: 'GET',
+                                headers: {
+                                    'Authorization': empresa.token,
+                                    'Accept': 'application/json'
+                                }
+                            });
+                            const taskDetailData = await taskDetailResponse.json();
+                            const subtasksResponse = await fetch(`https://app.asana.com/api/1.0/tasks/${task.gid}/subtasks`, {
+                                method: 'GET',
+                                headers: {
+                                    'Authorization': empresa.token,
+                                    'Accept': 'application/json'
+                                }
+                            });
+                            const subtasksData = await subtasksResponse.json();
+                            const squadId = await getSquadId(project.name, empresa.nome);
+                            if (squadId) {
+                                allTasks.push({
+                                    empresa: empresa.nome,
+                                    subtarefas: subtasksData.data.map(subtask => subtask.name),
+                                    squad_name: project.name,
+                                    squad_id: squadId,
+                                    tarefa: taskDetailData.data.name
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            return allTasks;
+        }
+
+
+
+      async function registerTasksInDatabaseConcluidos(tasks) {
+        try {
+            const response = await fetch('/cadastrar_tarefas_concluidas', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ tarefas: tasks })
+            });
+            const data = await response.json();
+            if (!data.success) {
+                console.error('Erro ao cadastrar tarefas:', data.error);
+            }
+        } catch (error) {
+            console.error('Erro ao cadastrar tarefas:', error);
+        }
+      }
+
+
+        async function fetchTarefasAtuais() {
+            const response = await fetch('/get_tarefas_atuais');
+            return response.json();
+        }
+
+        async function fetchTarefasFinalizadas() {
+            const response = await fetch('/get_tarefas_concluidas');
+            return response.json();
+        }
+
+        async function deleteTarefa(id) {
+            const url = '/deletar_tarefa/' + id;
+            const response = await fetch(url, { method: 'POST' });
+            return response.ok;
+        }
+
+        async function deleteTarefaConcluidos(id) {
+            const url = '/deletar_tarefa_concluida/' + id;
+            const response = await fetch(url, { method: 'POST' });
+            return response.ok;
+        }
+    </script>
+</head>
+
+<body onload="updateSquads();">
+    <h2>Montar Sprint da Semana</h2>
+    <form action="/montar_sprint_semana" method="post" onsubmit="runAsanaFunctions(event);">
+        <div>
+            <label for="empresa_id">Selecione a Empresa:</label>
+            <select name="empresa_id" id="empresa_id" onchange="updateSquads()">
+                {% for empresa in empresas %}
+                <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="squad_id">Selecione o Squad:</label>
+            <select name="squad_id" id="squad_id"></select>
+        </div>
+        <input type="submit" value="Selecionar">
+    </form>
+    <section>
+        <h3>FormsObjetivos</h3>
+        <ul>
+            {% for obj in forms_objetivos %}
+            <li>ID: {{ obj.id }} - Data: {{ obj.data }}</li>
+            {% endfor %}
+        </ul>
+    </section>
+    <section>
+        <h3>OKRs</h3>
+        <ul>
+            {% for okr in okrs %}
+            <li>ID: {{ okr.id }} - Objetivo: {{ okr.objetivo }} - Data Início: {{ okr.data_inicio }} - Data Fim: {{ okr.data_fim }}</li>
+            {% endfor %}
+        </ul>
+    </section>
+    <section>
+        <h3>KRs</h3>
+        <ul>
+            {% for kr in krs %}
+            <li>ID: {{ kr.id }} - Texto: {{ kr.texto }} - Meta: {{ kr.meta }} - Data Inclusão: {{ kr.data_inclusao }}</li>
+            {% endfor %}
+        </ul>
+    </section>
+    <section>
+        <h3>MacroAcoes</h3>
+        <ul>
+            {% for ma in macroacoes %}
+            <li>ID: {{ ma.id }} - Texto: {{ ma.texto }} - Data Inclusão: {{ ma.data_inclusao }}</li>
+            {% endfor %}
+        </ul>
+    </section>
+    <section>
+        <h3>Tarefas Em Andamento</h3>
+        <ul>
+            {% for tarefa in tarefas_andamento %}
+            <li>ID: {{ tarefa.id }} - Tarefa: {{ tarefa.tarefa }} - Data Inclusão: {{ tarefa.data_inclusao }}
+                <ul>
+                    {% for subtarefa in tarefa.subtarefas %}
+                    <li>Subtarefa: {{ subtarefa }}</li>
+                    {% endfor %}
+                </ul>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+    <section>
+        <h3>Tarefas Finalizadas</h3>
+        <ul>
+            {% for tarefa in tarefas_finalizadas %}
+            <li>Tarefa: {{ tarefa.tarefa }} - Data Inclusão: {{ tarefa.data_inclusao }} - Data Conclusão: {{ tarefa.data_conclusao }}
+                <ul>
+                    {% for subtarefa in tarefa.subtarefas %}
+                    <li>Subtarefa: {{ subtarefa }}</li>
+                    {% endfor %}
+                </ul>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+    <button onclick="location.href='/caminho_para_proxima_pagina'">OK</button>
+</body>
+
+</html>

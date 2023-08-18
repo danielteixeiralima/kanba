@@ -3478,7 +3478,7 @@ def gerar_tarefas_metas_semanais():
     forms_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
 
     prompt = (
-        f"Com base nas informações dos colaborares da empresa {forms_details}, os objetivos para o periodo de 90 dias {okrs_details}, os KR's medidores dos objetivos {krs_details}, as macro ações {macro_acoes_details}."
+        f"Com base nas informações dos colaborares da empresa {forms_details}, pelo squad {squad.nome_squad}, os objetivos para o periodo de 90 dias {okrs_details}, os KR's medidores dos objetivos {krs_details}, as macro ações {macro_acoes_details}."
         f"Considerando o progresso atual de cada KR, defina tarefas e metas da semana para a próxima semana que auxiliem no atingimento dos indicadores. "
         f"Cada tarefa sugerida e sua meta da semana devem ser direcionadas ao progresso dos KR's e alinhadas com as macro ações e os objetivos. "
         f"Cada tarefa e meta semanal deve ser expressa em uma única frase."
@@ -3583,7 +3583,189 @@ def listar_tarefas_finalizadas(empresa_id, squad_id):
                            squad_nome=squad_nome)
 
 
+from flask import render_template, request, redirect, url_for
 
+from flask import render_template, request, redirect, url_for
+
+
+@app.route('/montar_sprint_semana', methods=['GET', 'POST'])
+def montar_sprint_semana():
+    if request.method == 'POST':
+        empresa_id = int(request.form.get('empresa_id'))
+        squad_id = int(request.form.get('squad_id'))
+
+        # Carregar os dados relacionados à empresa e squad selecionados
+        forms_objetivos = FormsObjetivos.query.filter_by(empresa_id=empresa_id, squad_id=squad_id).all()
+        okrs = OKR.query.filter_by(id_empresa=empresa_id, squad_id=squad_id).all()
+        krs = KR.query.filter_by(id_empresa=empresa_id, squad_id=squad_id).all()
+        macroacoes = MacroAcao.query.filter_by(empresa_id=empresa_id, squad_id=squad_id).all()
+        tarefas_andamento = TarefasAndamento.query.filter_by(squad_id=squad_id).all()
+        tarefas_finalizadas = TarefasFinalizadas.query.filter_by(squad_id=squad_id).all()
+
+        return render_template('escolher_empresa_squad_sprint_semanal.html',
+                               forms_objetivos=forms_objetivos,
+                               okrs=okrs,
+                               krs=krs,
+                               macroacoes=macroacoes,
+                               tarefas_andamento=tarefas_andamento,
+                               tarefas_finalizadas=tarefas_finalizadas)
+
+    empresas = Empresa.query.all()
+    squads = Squad.query.all()
+    return render_template('escolher_empresa_squad_sprint_semanal.html', empresas=empresas, squads=squads)
+
+
+@app.route('/get_squad_id', methods=['GET'])
+def get_squad_id():
+    try:
+        squad_name = request.args.get('squad_name')
+        empresa_name = request.args.get('empresa_name')
+        print(squad_name, empresa_name)
+
+        # Filtrando por nome_squad e nome da empresa usando join
+        squad = db.session.query(Squad).join(Empresa).filter(
+            Squad.nome_squad == squad_name,
+            Empresa.nome_contato == empresa_name
+        ).first()
+
+        if not squad:
+            return jsonify(success=False, error="Squad não encontrado")
+        return jsonify(success=True, squad_id=squad.id)
+    except Exception as e:
+        return jsonify(success=False, error=str(e))
+
+@app.route('/get_tarefas_concluidas', methods=['GET'])
+def get_tarefas_concluidas():
+    try:
+        tarefas = TarefasFinalizadas.query.all()
+        result = []
+        for tarefa in tarefas:
+            print(tarefa.subtarefas)
+            result.append({
+                'id': tarefa.id,  # Inclua o ID da tarefa aqui
+                'nome_tarefa': tarefa.tarefa,
+                'desc': tarefa.descricao_empresa if hasattr(tarefa, 'descricao_empresa') else '',
+                'pos': tarefa.squad_name,
+                'start': tarefa.data_inclusao.strftime('%Y-%m-%d') if hasattr(tarefa, 'data_inclusao') else '',
+                # Ajuste se necessário
+                'close': tarefa.data_conclusao.strftime('%Y-%m-%d') if tarefa.data_conclusao else '',
+                'nome_empresa': tarefa.empresa,
+                'nome_squad': tarefa.squad_name,
+                'plataforma': '',
+                'subtarefas': tarefa.subtarefas  # Adicionando o campo subtarefas
+
+            })
+        return jsonify(result)
+    except Exception as e:
+        return jsonify(error=str(e))
+
+
+@app.route('/get_tarefas_atuais', methods=['GET'])
+def get_tarefas_atuais():
+    try:
+        tarefas = TarefasAndamento.query.all()
+        print(tarefas)
+        result = []
+        for tarefa in tarefas:
+            result.append({
+                'id': tarefa.id,
+                'nome_tarefa': tarefa.tarefa,
+                'desc': tarefa.descricao_empresa if hasattr(tarefa, 'descricao_empresa') else '',
+                'pos': tarefa.squad_name,
+                'start': tarefa.data_inclusao.strftime('%Y-%m-%d'),
+                'close': tarefa.data_conclusao.strftime('%Y-%m-%d') if tarefa.data_conclusao else '',
+                'nome_empresa': tarefa.empresa,
+                'nome_squad': tarefa.squad_name,
+                'plataforma': '',  # Adicione o campo de plataforma se necessário
+                'subtarefas': tarefa.subtarefas  # Adicionando o campo subtarefas
+            })
+        return jsonify(result)
+    except Exception as e:
+        return jsonify(error=str(e))
+
+
+@app.route('/deletar_tarefa_concluida/<int:id>', methods=['POST'])
+def deletar_tarefa_concluida(id):
+    tarefa = TarefasFinalizadas.query.get_or_404(id)
+    db.session.delete(tarefa)
+    db.session.commit()
+    return jsonify(success=True)
+
+
+@app.route('/deletar_tarefa/<int:id>', methods=['POST'])
+def deletar_tarefa(id):
+    tarefa = TarefasAndamento.query.get_or_404(id)
+    db.session.delete(tarefa)
+    db.session.commit()
+    return jsonify(success=True)
+
+
+@app.route('/cadastrar_tarefas_atuais', methods=['POST'])
+def cadastrar_tarefas_atuais():
+    try:
+        tarefas_data = request.json['tarefas']
+        for tarefa_data in tarefas_data:
+
+            empresa = Empresa.query.filter_by(nome_contato=tarefa_data['empresa']).first()
+            if not empresa:
+                return jsonify(success=False, error="Empresa não encontrada")
+
+            squad = Squad.query.filter_by(id=tarefa_data['squad_id'], empresa_id=empresa.id).first()
+            if not squad:
+                return jsonify(success=False, error="Squad não encontrado")
+
+            tarefa = TarefasAndamento(
+                empresa=tarefa_data['empresa'],
+                squad_name=tarefa_data['squad_name'],
+                squad_id=squad.id,
+                tarefa=tarefa_data['tarefa'],
+                data_inclusao=datetime.utcnow(),
+                subtarefas=tarefa_data.get('subtarefas', {})
+            )
+            db.session.add(tarefa)
+        db.session.commit()
+        return jsonify(success=True)
+    except Exception as e:
+        return jsonify(success=False, error=str(e))
+
+
+@app.route('/cadastrar_tarefas_concluidas', methods=['POST'])
+def cadastrar_tarefas_concluidas():
+    try:
+        tarefas_data = request.json['tarefas']
+        for tarefa_data in tarefas_data:
+
+            # Obter a empresa pelo nome_contato (ou o campo correto que representa o nome da empresa)
+            empresa = Empresa.query.filter_by(nome_contato=tarefa_data['empresa']).first()
+            if not empresa:
+                return jsonify(success=False, error="Empresa não encontrada")
+
+            # Obter o squad pelo ID
+            squad = Squad.query.filter_by(id=tarefa_data['squad_id'], empresa_id=empresa.id).first()
+            if not squad:
+                return jsonify(success=False, error="Squad não encontrado")
+
+            # Criar a tarefa
+            tarefa = TarefasFinalizadas(
+                empresa=tarefa_data['empresa'],
+                squad_name=tarefa_data['squad_name'],
+                squad_id=squad.id,
+                tarefa=tarefa_data['tarefa'],
+                data_conclusao=datetime.utcnow(),
+                subtarefas=tarefa_data.get('subtarefas', {})
+            )
+            db.session.add(tarefa)
+        db.session.commit()
+        return jsonify(success=True)
+    except Exception as e:
+        return jsonify(success=False, error=str(e))
+
+
+@app.route('/get_squads_sprint/<int:empresa_id>')
+def get_squads_sprint(empresa_id):
+    squads = Squad.query.filter_by(empresa_id=empresa_id).all()
+    squads_list = [{"id": squad.id, "nome": squad.nome_squad} for squad in squads]
+    return jsonify(squads_list)
 
 if __name__ == '__main__':
     app.run()

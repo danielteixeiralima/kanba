@@ -9,6 +9,7 @@
                 <th>Empresa</th>
                 <th>Squad</th>
                 <th>Tarefa</th>
+                <th>Sub Tarefas</th>
                 <th>Data de Inclusão</th>
                 <th>Data de Conclusão</th>
             </tr>
@@ -20,6 +21,7 @@
                 <td>{{ tarefa.squad.empresa.nome_contato }}</td>
                 <td>{{ tarefa.squad.nome_squad }}</td>
                 <td>{{ tarefa.tarefa }}</td>
+                <td>{{ tarefa.subtarefas }}</td>
                 <td>{{ tarefa.data_inclusao.strftime('%d/%m/%Y %H:%M') }}</td>
                 <td>{{ tarefa.data_conclusao.strftime('%d/%m/%Y %H:%M') if tarefa.data_conclusao else 'Em Aberto' }}</td>
             </tr>
