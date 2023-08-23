@@ -6,28 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Montar Sprint da Semana</title>
     <script>
-
-    window.onload = function() {
-            // Inicializar a variável empresasTokens no localStorage
-            const empresasTokens = [
-                {
-                    nome: "Sette7",
-                    token: 'Bearer 1/1198735305571370:365e53e913a327a68486518d9fa4363e',
-                    workspace: '1205278753339325',
-                    team: '1205278753339327'
-                },
-                {
-                  nome: "ES360",
-                  token: 'Bearer 1/1150237826145564:8aa093214a72b8a8c73eff3cb5a777ac',
-                  workspace: '16363265495050',
-                  team: '1205288598041717'
-                }
-                // Adicione mais empresas e tokens conforme necessário
-            ];
-            localStorage.setItem('empresasTokens', JSON.stringify(empresasTokens));
-            console.log("dsia")
-        };
-
         function updateSquads() {
             const empresaId = document.getElementById('empresa_id').value;
             fetch('/get_squads_sprint/' + empresaId)
@@ -290,12 +268,93 @@
             const response = await fetch(url, { method: 'POST' });
             return response.ok;
         }
+
+        function salvarDadosNoLocalStorage() {
+            const empresaDropdown = document.getElementById('empresa_id');
+            const squadDropdown = document.getElementById('squad_id');
+            const empresaName = empresaDropdown.options[empresaDropdown.selectedIndex].text;
+            const squadName = squadDropdown.options[squadDropdown.selectedIndex].text;
+
+            localStorage.setItem('empresaName', empresaName);
+            localStorage.setItem('squadName', squadName);
+        }
+
+        async function fetchEmpresaId() {
+            const empresaName = localStorage.getItem('empresaName');
+
+            try {
+                const response = await fetch(`/get_empresaId?empresa_name=${encodeURIComponent(empresaName)}`);
+                const data = await response.json();
+                if (data.success) {
+                    return data.empresa_id;
+                } else {
+                    console.error('Erro ao obter empresa_id:', data.error);
+                    return null;
+                }
+            } catch (error) {
+                console.error('Erro ao fazer a requisição:', error);
+                return null;
+            }
+        }
+
+        async function fetchSquadId() {
+            const squadName = localStorage.getItem('squadName');
+            const empresaName = localStorage.getItem('empresaName');
+
+            try {
+                const response = await fetch(`/get_squad_id?squad_name=${encodeURIComponent(squadName)}&empresa_name=${encodeURIComponent(empresaName)}`);
+                const data = await response.json();
+                if (data.success) {
+                    return data.squad_id;
+                } else {
+                    console.error('Erro ao obter squad_id:', data.error);
+                    return null;
+                }
+            } catch (error) {
+                console.error('Erro ao fazer a requisição:', error);
+                return null;
+            }
+        }
+
+        async function gerarTarefasEMetas() {
+            const empresaId = await fetchEmpresaId();
+            const squadId = await fetchSquadId();
+            if (!squadId || !empresaId) {
+                console.error('Não foi possível obter o Squad ID ou Empresa ID');
+                return;
+            }
+            console.log(squadId)
+            console.log(empresaId)
+
+            const data = {
+                'empresa_id': empresaId,
+                'squad_id': squadId
+            };
+
+            try {
+                const response = await fetch('/gerar_tarefas_metas_semanais_novo', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    location.href = '/caminho_para_proxima_pagina';
+                } else {
+                    console.error('Erro ao gerar tarefas e metas semanais:', await response.text());
+                }
+            } catch (error) {
+                console.error('Erro ao fazer a chamada fetch:', error);
+            }
+        }
     </script>
 </head>
 
 <body onload="updateSquads();">
     <h2>Montar Sprint da Semana</h2>
-    <form action="/montar_sprint_semana" method="post" onsubmit="runAsanaFunctions(event);">
+    <form action="/montar_sprint_semana" method="post" onsubmit="salvarDadosNoLocalStorage(); runAsanaFunctions(event);">
         <div>
             <label for="empresa_id">Selecione a Empresa:</label>
             <select name="empresa_id" id="empresa_id" onchange="updateSquads()">
@@ -370,7 +429,7 @@
             {% endfor %}
         </ul>
     </section>
-    <button onclick="location.href='/caminho_para_proxima_pagina'">OK</button>
+    <button onclick="gerarTarefasEMetas()">OK</button>
 </body>
 
 </html>

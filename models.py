@@ -378,6 +378,8 @@ class TarefasAndamento(db.Model):
     subtarefas = db.Column(db.JSON)  # Campo JSON para subtarefas
     squad = db.relationship('Squad', backref='tarefas_atuais')
 
+
+
 class TarefasFinalizadas(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     empresa = db.Column(db.String(255), nullable=False)

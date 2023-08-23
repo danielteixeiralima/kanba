@@ -3767,6 +3767,130 @@ def get_squads_sprint(empresa_id):
     squads_list = [{"id": squad.id, "nome": squad.nome_squad} for squad in squads]
     return jsonify(squads_list)
 
+
+
+@app.route('/gerar_tarefas_metas_semanais_novo', methods=['POST'])
+def gerar_tarefas_metas_semanais_novo():
+    empresa_id = request.json['empresa_id']
+    squad_id = request.json['squad_id']
+    print(f"Empresa ID: {empresa_id}, Squad ID: {squad_id}")
+
+    empresa = Empresa.query.filter_by(id=empresa_id).first()
+    squad = Squad.query.filter_by(id=squad_id).first()
+    forms_objetivos = FormsObjetivos.query.filter_by(squad_id=squad_id).all()
+
+    forms_objetivos_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
+    okrs = OKR.query.filter_by(squad_id=squad_id).all()
+    krs = KR.query.filter_by(squad_id=squad_id).all()
+    tarefas_andamento = TarefasAndamento.query.filter_by(squad_id=squad_id).all()
+    tarefas_finalizadas = TarefasFinalizadas.query.filter_by(squad_id=squad_id).all()
+
+    okrs_details = ", ".join([f"{okr.objetivo} (ID: {okr.id})" for okr in okrs])
+    krs_details = ", ".join([f"{kr.texto} (Meta: {kr.meta})" for kr in krs])
+    macro_acoes_details = ", ".join([ma.texto for ma in MacroAcao.query.filter_by(squad_id=squad_id).all()])
+    tarefas_andamento_details = ", ".join([
+        f"{tarefa.tarefa} (ID: {tarefa.id}, Data Inclusão: {tarefa.data_inclusao}, Data Conclusão: {tarefa.data_conclusao}, Subtarefas: {json.dumps(tarefa.subtarefas) if tarefa.subtarefas else 'Nenhuma'})"
+        for tarefa in tarefas_andamento
+    ])
+    tarefas_finalizadas_details = ", ".join([
+        f"{tarefa.tarefa} (ID: {tarefa.id}, Data Inclusão: {tarefa.data_inclusao}, Data Conclusão: {tarefa.data_conclusao}, Subtarefas: {json.dumps(tarefa.subtarefas) if tarefa.subtarefas else 'Nenhuma'})"
+        for tarefa in tarefas_finalizadas
+    ])
+    """
+    prompt = (
+        f"Informações da empresa {empresa.nome_contato} e squad {squad.nome_squad}:"
+        f"FormsObjetivos: {forms_objetivos_details}, OKRs: {okrs_details}, "
+        f"KRs: {krs_details}, MacroAções: {macro_acoes_details}, "
+        f"Tarefas em Andamento: {tarefas_andamento_details}, Tarefas Finalizadas: {tarefas_finalizadas_details}. "
+        f"Com base nessas informações, sugira tarefas para a proxima semana."
+        f"Formate a resposta como um JSON com as seguintes chaves: tarefa, meta_semanal, squad, empresa. Não adicione outras chaves além destas. Responda apenas com o JSON"
+    )
+    """
+    prompt = (
+        f"Informações da empresa {empresa.nome_contato} e squad {squad.nome_squad}:"
+        f"FormsEquipe: {forms_objetivos_details}, OKRs: {okrs_details}, "
+        f"KRs: {krs_details}, MacroAções: {macro_acoes_details}, "
+        f"Tarefas em Andamento: {tarefas_andamento_details}, Tarefas Finalizadas: {tarefas_finalizadas_details}. "
+        f"Considerando o progresso atual de cada KR, defina tarefas e metas da semana para a próxima semana que auxiliem no atingimento dos indicadores. "
+        f"Cada tarefa sugerida e sua meta da semana devem ser direcionadas ao progresso dos KR's e alinhadas com as macro ações e os objetivos. "
+        f"Com base nessas informações, sugira tarefas para a proxima semana."
+        f"Formate a resposta como um JSON com as seguintes chaves: tarefa, meta_semanal, squad, empresa. Não adicione outras chaves além destas. Responda apenas com o JSON"
+    )
+
+
+    pergunta_id = str(uuid.uuid4())
+    messages = []
+    print("Prompt completo:", prompt)
+
+    resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
+    print("Resposta completa:", resposta)
+
+    # Correção na formatação do JSON:
+    resposta_corrigida = "[" + resposta.replace("}\n{", "},\n{") + "]"
+    tarefas_metas_semanais_list = json.loads(resposta_corrigida)
+
+    try:
+        # Remova registros anteriores relacionados à squad e à empresa.
+        TarefasMetasSemanais.query.filter_by(squad_id=squad_id, empresa=empresa.nome_contato).delete()
+        db.session.commit()
+
+        # Certifique-se de que a resposta é uma lista de dicionários
+        if not isinstance(tarefas_metas_semanais_list, list):
+            raise ValueError("A resposta não é uma lista.")
+
+        for tarefa_metas_semanais_data in tarefas_metas_semanais_list:
+            # Cheque se o item atual é um dicionário
+            if not isinstance(tarefa_metas_semanais_data, dict):
+                print(f"Item inesperado na resposta: {tarefa_metas_semanais_data}")
+                continue
+
+            # Verificação das chaves necessárias
+            tarefa = tarefa_metas_semanais_data.get('tarefa')
+            meta_semanal = tarefa_metas_semanais_data.get('meta_semanal')
+            squad_name = tarefa_metas_semanais_data.get('squad')
+            empresa_name = tarefa_metas_semanais_data.get('empresa')
+
+            if not all([tarefa, meta_semanal, squad_name, empresa_name]):
+                print(f"Dados incompletos ou ausentes no registro: {tarefa_metas_semanais_data}")
+                continue
+
+            # Crie o objeto e adicione ao banco de dados
+            tarefa_metas_semanais = TarefasMetasSemanais(
+                empresa=empresa_name,
+                squad_name=squad_name,
+                squad_id=squad_id,
+                tarefa=tarefa,
+                meta_semanal=meta_semanal
+            )
+            db.session.add(tarefa_metas_semanais)
+
+        # Tente fazer o commit
+        db.session.commit()
+    except Exception as e:
+        # Se algo der errado, imprima o erro e faça rollback da sessão
+        print(f"Erro ao adicionar os dados ao banco: {e}")
+        db.session.rollback()
+
+    return redirect(url_for('listar_tarefas_metas_semanais'))
+
+
+@app.route('/get_empresaId', methods=['GET'])
+def get_empresaId():
+    try:
+        empresa_name = request.args.get('empresa_name')
+
+        empresa = Empresa.query.filter_by(nome_contato=empresa_name).first()
+
+        if not empresa:
+            return jsonify(success=False, error="Empresa não encontrada")
+        return jsonify(success=True, empresa_id=empresa.id)
+    except Exception as e:
+        return jsonify(success=False, error=str(e))
+
+
+
+
+
 if __name__ == '__main__':
     app.run()
 
