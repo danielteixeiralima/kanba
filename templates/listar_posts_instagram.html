@@ -1,0 +1,25 @@
+<!-- listar_posts_instagram.html -->
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Posts do Instagram para {{ empresa_selecionada.nome_contato }}</h1>
+
+    <table class="styled-table">
+        <thead>
+            <tr>
+                <th>Legenda</th>
+                <th>Likes</th>
+                <th>Comentários</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for post in posts %}
+                <tr>
+                    <td>{{ post.caption }}</td>
+                    <td>{{ post.like_count }}</td>
+                    <td>{{ post.comments_count }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

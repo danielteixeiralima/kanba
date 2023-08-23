@@ -1,10 +1,11 @@
 from flask import Flask, render_template, request, redirect, url_for, session, abort, flash
-from models import db, Empresa, Resposta, Usuario, OKR, KR, MacroAcao, Sprint, TarefaSemanal, SprintPendente, TarefasFinalizadas, Squad, FormsObjetivos, ObjetivoGeradoChatAprovacao, KrGeradoChatAprovacao, MacroAcaoGeradoChatAprovacao, TarefasMetasSemanais, TarefasAndamento
+from models import db, Empresa, Resposta, Usuario, OKR, KR, MacroAcao, Sprint, TarefaSemanal, PostsInstagram, SprintPendente, TarefasFinalizadas, Squad, FormsObjetivos, ObjetivoGeradoChatAprovacao, KrGeradoChatAprovacao, MacroAcaoGeradoChatAprovacao, TarefasMetasSemanais, TarefasAndamento, AnaliseInstagram
 import requests
 import json
 from collections import defaultdict
 from flask_migrate import Migrate
 from flask import jsonify
+from sqlalchemy import desc
 from dotenv import load_dotenv
 import os
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required
@@ -25,6 +26,8 @@ import openpyxl
 import uuid
 import logging
 from sqlalchemy.orm import joinedload
+from sqlalchemy import distinct
+import traceback
 
 
 
@@ -3113,10 +3116,10 @@ def gerar_macro_acoes_prompt_gpt():
 
     #prompt = ("Com base nas respostas fornecidas " + forms_objetivos_details + " pelo squad " + squad.nome_squad + " da empresa " + empresa.nome_contato + " e considerando os objetivos e KR's aprovados {" + okrs_details + ", " + krs_details + "}, defina macro ações que se alinham com os objetivos e KR's primordiais para o atingimento dos indicadores. Cada macro ação devem ser expressos em uma única frase. Faça as macro ações para todos os objetivos e KR's. Responda com o nome do KR e não com o ID. Responda com KR somente com o texto. Formate a resposta como um JSON com as seguintes chaves: empresa, squad, objetivo, kr, macro_acao. Não adicione outras chaves além destas.")
     prompt = (
-        f"GPT-4, com base nas informações contidas nos arquivos {forms_details} e {okrs_details}, "
+        f"GPT-4, com base nas informações das respostas dos participantes do squad {forms_details} os objetivos aprovados para os proximos 90 dias {okrs_details}, "
         f"analise e sintetize as informações mais relevantes sobre os Objetivos-Chave de Resultados (OKRs) já definidos e as informações da empresa. "
         f"A partir destas informações e considerando as respostas {forms_objetivos_details} pelo squad {squad.nome_squad} da empresa {empresa.nome_contato}, "
-        f"e tendo em mente os objetivos e KR's aprovados {{{okrs_details}, {krs_details}}}, "
+        f"e tendo em mente os objetivos {{{okrs_details} e esses KR's aprovados {krs_details}}}, "
         f"defina Macro Ações que se alinham com os objetivos e KR's primordiais para o atingimento dos indicadores. Estas Macro Ações são atividades ou naturezas de trabalho que contribuem para a realização de cada KR e devem ser atividades direcionais que apoiarão o alcance do KR. "
         f"Cada Macro Ação, após sua definição final, deve ser clara, concisa e alinhada ao tom da empresa. "
         f"Formate a resposta como um JSON com as seguintes chaves: empresa, squad, objetivo, kr, macro_acao. Não adicione outras chaves além destas. Responda todas as chaves com texto, e não com id"
@@ -3176,6 +3179,135 @@ def gerar_macro_acoes_prompt_gpt():
     return redirect(url_for('listar_sugestao_macro_acao_gpt'))
 
 
+@app.route('/api/empresas', methods=['GET'])
+def get_empresas_vinculadas():
+    empresas = db.session.query(distinct(Empresa.vincular_instagram)).filter(Empresa.vincular_instagram != None, Empresa.vincular_instagram != "").all()
+    return jsonify([empresa[0] for empresa in empresas])
+
+@app.route('/api/posts', methods=['GET'])
+def api_posts():
+    empresa_selecionada = request.args.get('empresa')
+    if empresa_selecionada:
+        posts = PostsInstagram.query.filter(PostsInstagram.nome_empresa == empresa_selecionada).order_by(desc(PostsInstagram.timestamp)).all()
+    else:
+        posts = PostsInstagram.query.order_by(desc(PostsInstagram.timestamp)).all()
+
+    print(empresa_selecionada)
+    posts = [post.to_dict() for post in posts]  # Convert each post to a dictionary
+    return jsonify(posts)
+
+@app.route('/api/salvar_analise', methods=['POST'])
+def salvar_analise():
+    try:
+        if request.method == 'POST':
+            nome_empresa = request.form.get('nome_empresa')
+
+            print(f"Nome da empresa recebido: {nome_empresa}")
+
+            # Verificar se existem pelo menos 12 posts não analisados
+            if not get_last_15_days_posts(nome_empresa):
+                print("Falha: menos de 12 posts foram analisados.")
+                return jsonify({'message': 'Falha ao salvar análise! Menos de 12 posts foram analisados.'}), 400
+
+            analise = AnaliseInstagram(
+                id=request.form.get('id'),
+                nome_empresa=nome_empresa,
+                data_criacao=request.form.get('data_criacao'),
+                analise=request.form.get('analise'),
+            )
+
+            db.session.add(analise)
+            db.session.commit()
+
+            return jsonify({'message': 'Análise salva com sucesso!'}), 200
+
+    except Exception as e:
+        print("Exceção ocorreu: ", e)
+        traceback.print_exc()
+        return jsonify({'message': 'Falha ao salvar análise!'}), 500
+
+
+@app.route('/deletar_post/<id>', methods=['POST'])
+def deletar_post(id):
+    post = PostsInstagram.query.get_or_404(str(id))
+    db.session.delete(post)
+    db.session.commit()
+    return redirect(url_for('listar_posts'))
+
+@app.route('/api/analise_posts')
+def api_analise_posts():
+    empresa = request.args.get('empresa')
+    analise = analise_post_instagram(empresa)
+    # print(analise)
+    return jsonify(analise)
+
+@app.route('/deletar_analise/<int:id>', methods=['POST'])
+def deletar_analise(id):
+    analise = AnaliseInstagram.query.get_or_404(id)
+    print(id)
+    db.session.delete(analise)
+    db.session.commit()
+    return redirect(url_for('visualizar_analises'))
+
+@app.route('/visualizar_analises', methods=['GET'])
+def visualizar_analises():
+    nome_empresa = request.args.get('empresa')
+    analise = analise_post_instagram(nome_empresa)
+    return render_template('listar_analises.html', analise=analise)
+
+def get_last_15_days_posts(empresa):
+    # Adicione a condição analisado == False à query
+    posts = PostsInstagram.query.filter(PostsInstagram.nome_empresa == empresa, PostsInstagram.analisado == False).order_by(PostsInstagram.timestamp.desc()).limit(12).all()
+
+    # Converter os objetos Post em dicionários
+    posts_dict = [post.to_dict() for post in posts]
+
+    return posts_dict
+def analise_post_instagram(nome_empresa):
+    # print('Análise de Post Instagram')
+    # Obter os posts dos últimos 15 dias
+    posts = get_last_15_days_posts(nome_empresa)
+    # print(nome_empresa)
+
+    # Verificar se existem pelo menos 12 posts não analisados
+    if len(posts) < 12:
+        print('Menos de 12 posts foram analisados. Análise interrompida.')
+        return
+
+    # print(f"Posts para a empresa de ID: {nome_empresa}")
+
+    todos_posts_str = ""
+    for i, post in enumerate(posts, start=1):
+        todos_posts_str += f"Legenda: {post['caption']}\n"
+        todos_posts_str += f"Data de criação: {post['timestamp']}\n"
+        todos_posts_str += f"Número de likes: {post['like_count']}\n"
+        todos_posts_str += f"Número de comentários: {post['comments_count']}\n"
+        todos_posts_str += f"Alcance: {post['reach']}\n"
+        todos_posts_str += f"Engajamento: {post['percentage']}\n"
+        todos_posts_str += f"Tipo de mídia: {post['media_product_type']}\n"
+        todos_posts_str += f"Número de reproduções (reels): {post['plays']}\n"
+        todos_posts_str += f"Número de salvos: {post['saved']}\n"
+        todos_posts_str += f"Nome da empresa: {post['nome_empresa']}\n"
+
+    pergunta = f"Aqui estão todos os posts dos últimos 15 dias:{todos_posts_str}\nPreciso que você analise de acordo com o engajamento e Audiencia esses posts e me diga: 1 - os 3 posts com melhores resultados, a data e porquê 2 - os 3 posts com piores resultados, a data e porquê. 3 - insights do mês (o que temos que melhorar, o que fizemos bem). 4 - baseado em tudo que teve de bom e de ruim, me faça a recomendação do próximo post, com a legenda completa e uma ideia para a imagem"
+
+    # print(pergunta)
+
+    resposta_gpt = perguntar_gpt(pergunta=pergunta, pergunta_id=1, messages=[])
+
+    # print(resposta_gpt)
+
+    # Marcar posts como analisados
+    for post in posts:
+        mark_post_as_analyzed(post['id'])
+
+    return resposta_gpt
+
+def mark_post_as_analyzed(post_id):
+    post = PostsInstagram.query.filter_by(id=post_id).first()
+    if post is not None:
+        post.analisado = False
+        db.session.commit()
 
 @app.route('/listar_sugestao_macro_acao_gpt')
 def listar_sugestao_macro_acao_gpt():
@@ -3887,6 +4019,19 @@ def get_empresaId():
     except Exception as e:
         return jsonify(success=False, error=str(e))
 
+
+
+
+@app.route('/escolher_empresa_instagram', methods=['GET'])
+def escolher_empresa_instagram():
+    empresas = Empresa.query.all()
+    return render_template('escolher_empresa_instagram.html', empresas=empresas)
+
+@app.route('/listar/posts', methods=['GET'])
+def listar_posts():
+    empresas = Empresa.query.filter(Empresa.vincular_instagram.isnot(None)).all()
+    posts = PostsInstagram.query.filter(PostsInstagram.timestamp.isnot(None)).all()
+    return render_template('listar_posts.html', posts=posts, empresas=empresas)
 
 
 

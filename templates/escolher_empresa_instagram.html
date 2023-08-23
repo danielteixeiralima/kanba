@@ -1,0 +1,17 @@
+<!-- escolher_empresa_instagram.html -->
+{% extends 'base.html' %}
+
+{% block content %}
+<form action="{{ url_for('listar_posts_instagram') }}" method="post">
+
+    <label for="empresa">Escolha uma empresa:</label>
+    <select id="empresa" name="empresa_id">
+        <option value="" disabled selected>Selecione</option>
+        {% for empresa in empresas %}
+            <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
+        {% endfor %}
+    </select>
+
+    <button type="submit">OK</button>
+</form>
+{% endblock %}
