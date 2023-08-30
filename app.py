@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, abort, flash
-from models import db, Empresa, Resposta, Usuario, OKR, KR, MacroAcao, Sprint, TarefaSemanal, PostsInstagram, SprintPendente, TarefasFinalizadas, Squad, FormsObjetivos, ObjetivoGeradoChatAprovacao, KrGeradoChatAprovacao, MacroAcaoGeradoChatAprovacao, TarefasMetasSemanais, TarefasAndamento, AnaliseInstagram
+from models import db, Empresa, Resposta, Usuario, OKR, KR, MacroAcao, Sprint, TarefaSemanal, PostsInstagram, Reuniao, SprintPendente, TarefasFinalizadas, Squad, FormsObjetivos, ObjetivoGeradoChatAprovacao, KrGeradoChatAprovacao, MacroAcaoGeradoChatAprovacao, TarefasMetasSemanais, TarefasAndamento, AnaliseInstagram
 import requests
 import json
 from collections import defaultdict
@@ -2565,8 +2565,7 @@ def enviar_forms():
         "\n\n4. Elabore até três objetivos para o próximo ciclo de 90 dias seguindo os critérios SMART."
         "\n\n5. Avalie e combine objetivos correlatos ou consecutivos."
         "\n\n6. Revise a redação dos objetivos."
-        "\n\n7. Justifique a escolha de cada objetivo e seu alinhamento com a missão e visão da empresa."
-        "\n\nNão responda nada mais que o Json. Responda apenas com o json com as seguinte chaves: objetivo, empresa, squad, id_objetivo.")
+        "\n\n Responda apenas com o json com as seguinte chaves: objetivo, empresa, squad. faça uma chave para cada objetivo com essas chaves. Não responda nada mais que o Json.")
 
     print("Pergunta completa:", prompt)
 
@@ -3091,9 +3090,6 @@ def get_krs_prompt_gpt(squad_id):
     return jsonify(result)
 
 
-
-
-
 @app.route('/gerar_macro_acoes_prompt_gpt', methods=['POST'])
 def gerar_macro_acoes_prompt_gpt():
     empresa_id = request.form['empresa_id']
@@ -3102,7 +3098,6 @@ def gerar_macro_acoes_prompt_gpt():
     empresa = Empresa.query.filter_by(id=empresa_id).first()
     squad = Squad.query.filter_by(id=squad_id).first()
     forms_objetivos = FormsObjetivos.query.filter_by(squad_id=squad_id).all()
-
     forms_objetivos_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
 
     okrs = OKR.query.filter_by(squad_id=squad_id).all()
@@ -3111,61 +3106,65 @@ def gerar_macro_acoes_prompt_gpt():
     okrs_details = ", ".join([f"{okr.objetivo} (ID: {okr.id})" for okr in okrs])
     krs_details = ", ".join([f"{kr.texto} (Meta: {kr.meta})" for kr in krs])
 
-    forms_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
-
-
-    #prompt = ("Com base nas respostas fornecidas " + forms_objetivos_details + " pelo squad " + squad.nome_squad + " da empresa " + empresa.nome_contato + " e considerando os objetivos e KR's aprovados {" + okrs_details + ", " + krs_details + "}, defina macro ações que se alinham com os objetivos e KR's primordiais para o atingimento dos indicadores. Cada macro ação devem ser expressos em uma única frase. Faça as macro ações para todos os objetivos e KR's. Responda com o nome do KR e não com o ID. Responda com KR somente com o texto. Formate a resposta como um JSON com as seguintes chaves: empresa, squad, objetivo, kr, macro_acao. Não adicione outras chaves além destas.")
     prompt = (
-        f"GPT-4, com base nas informações das respostas dos participantes do squad {forms_details} os objetivos aprovados para os proximos 90 dias {okrs_details}, "
+        f"GPT-4, com base nas informações das respostas dos participantes do squad {forms_objetivos_details} os objetivos aprovados para os proximos 90 dias {okrs_details}, "
         f"analise e sintetize as informações mais relevantes sobre os Objetivos-Chave de Resultados (OKRs) já definidos e as informações da empresa. "
         f"A partir destas informações e considerando as respostas {forms_objetivos_details} pelo squad {squad.nome_squad} da empresa {empresa.nome_contato}, "
         f"e tendo em mente os objetivos {{{okrs_details} e esses KR's aprovados {krs_details}}}, "
         f"defina Macro Ações que se alinham com os objetivos e KR's primordiais para o atingimento dos indicadores. Estas Macro Ações são atividades ou naturezas de trabalho que contribuem para a realização de cada KR e devem ser atividades direcionais que apoiarão o alcance do KR. "
         f"Cada Macro Ação, após sua definição final, deve ser clara, concisa e alinhada ao tom da empresa. "
-        f"Formate a resposta como um JSON com as seguintes chaves: empresa, squad, objetivo, kr, macro_acao. Não adicione outras chaves além destas. Responda todas as chaves com texto, e não com id"
+        f"Formate a resposta como um JSON com as seguintes chaves: empresa, squad, objetivo, kr, macro_acao. Não adicione outras chaves além destas. Responda todas as chaves com texto, e não com id. Faça uma chave para cada macro_acao "
     )
 
     print("Pergunta completa:", prompt)
 
+    # Preencha os detalhes da pergunta aqui...
     pergunta_id = str(uuid.uuid4())
     messages = []
 
     resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
     print("Resposta completa:", resposta)
 
-    resposta_json = json.loads("[" + resposta.replace("}\n\n{", "},\n{") + "]")
+    resposta_raw = resposta  # Usaremos a resposta diretamente
+
+    # Verifique se a resposta contém formatação markdown e remova-a
+    resposta_cleaned = resposta_raw.strip("`\n ")
+
+    try:
+        resposta_json = json.loads(resposta_cleaned)
+    except json.JSONDecodeError as e:
+        print("Erro ao decodificar o JSON da resposta!", e)
+        return "Erro ao decodificar o JSON da resposta!", 500
 
     novas_macro_acoes = []
 
     for item in resposta_json:
+        if not all(key in item for key in ['objetivo', 'kr', 'macro_acao']):
+            print("Dicionário incompleto:", item)
+            continue
+
         objetivo_name_with_id = item["objetivo"]
         objetivo_name = re.sub(r'\s*\(ID:\s*\d+\)\s*$', '', objetivo_name_with_id)
         objetivo = OKR.query.filter_by(objetivo=objetivo_name, squad_id=squad_id).first()
+
         if objetivo is None:
             print(f"No matching Objective found for name '{objetivo_name}' and squad_id '{squad_id}'")
             continue
-        objetivo_id = objetivo.id
 
-        kr_text = item["kr"]
-
-        # Tente determinar se o KR é um ID ou texto.
-        if kr_text.isdigit():
-            kr = KR.query.filter_by(id=int(kr_text), squad_id=squad_id).first()
-        else:
-            kr = KR.query.filter_by(texto=kr_text, squad_id=squad_id).first()
+        kr_text_with_meta = item["kr"]
+        kr_text = re.sub(r'\s*\(Meta:.*\)\s*$', '', kr_text_with_meta)  # Aqui estamos removendo a parte da meta.
+        kr = KR.query.filter_by(texto=kr_text, squad_id=squad_id).first()
 
         if kr is None:
             print(f"No matching KR found for text '{kr_text}' and squad_id '{squad_id}'")
             continue
-        kr_id = kr.id
 
         macro_acao_text = item["macro_acao"]
-
         macro_acao = MacroAcaoGeradoChatAprovacao(
             empresa_id=empresa_id,
             squad_id=squad_id,
-            objetivo_id=objetivo_id,
-            kr_id=kr_id,
+            objetivo_id=objetivo.id,
+            kr_id=kr.id,
             macro_acao=macro_acao_text
         )
 
@@ -3177,6 +3176,7 @@ def gerar_macro_acoes_prompt_gpt():
     db.session.commit()
 
     return redirect(url_for('listar_sugestao_macro_acao_gpt'))
+
 
 
 @app.route('/api/empresas', methods=['GET'])
@@ -3715,7 +3715,6 @@ def listar_tarefas_finalizadas(empresa_id, squad_id):
                            squad_nome=squad_nome)
 
 
-from flask import render_template, request, redirect, url_for
 
 from flask import render_template, request, redirect, url_for
 
@@ -4033,6 +4032,50 @@ def listar_posts():
     posts = PostsInstagram.query.filter(PostsInstagram.timestamp.isnot(None)).all()
     return render_template('listar_posts.html', posts=posts, empresas=empresas)
 
+
+@app.route('/listar_reunioes')
+def listar_reunioes():
+    reunioes = Reuniao.query.all()
+    return render_template('listar_reunioes.html', reunioes=reunioes)
+
+
+@app.route('/cadastrar_reuniao', methods=['GET', 'POST'])
+def cadastrar_reuniao():
+    if request.method == 'POST':
+        empresa_id = request.form['empresa']
+        squad_id = request.form['squad']
+        transcricao = request.form['transcricao']
+        thread = request.form['thread']
+        data_realizacao = request.form['data_realizacao']
+
+        nova_reuniao = Reuniao(empresa_id=empresa_id, squad_id=squad_id, transcricao=transcricao, thread=thread,
+                               data_realizacao=data_realizacao)
+        db.session.add(nova_reuniao)
+        db.session.commit()
+        return redirect(url_for('listar_reunioes'))
+
+    empresas = Empresa.query.all()
+    return render_template('cadastrar_reuniao.html', empresas=empresas)
+
+
+@app.route('/atualizar_reuniao/<int:id>', methods=['GET', 'POST'])
+def atualizar_reuniao(id):
+    reuniao = Reuniao.query.get(id)
+    if request.method == 'POST':
+        reuniao.transcricao = request.form['transcricao']
+        reuniao.thread = request.form['thread']
+        reuniao.data_realizacao = request.form['data_realizacao']
+        db.session.commit()
+        return redirect(url_for('listar_reunioes'))
+    return render_template('atualizar_reuniao.html', reuniao=reuniao)
+
+
+@app.route('/deletar_reuniao/<int:id>', methods=['POST'])
+def deletar_reuniao(id):
+    reuniao = Reuniao.query.get(id)
+    db.session.delete(reuniao)
+    db.session.commit()
+    return redirect(url_for('listar_reunioes'))
 
 
 

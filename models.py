@@ -315,6 +315,7 @@ class PostsInstagram(db.Model):
             'analisado': self.analisado,  # Incluído o campo "analisado" no dicionário
         }
 
+
 class AnaliseInstagram(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     data_criacao = db.Column(db.String(64))
@@ -392,6 +393,39 @@ class TarefasFinalizadas(db.Model):
     squad = db.relationship('Squad', backref='tarefas_concluidas')
 
 
+class InstagramMetrics(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
+    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
+    data_inicio = db.Column(db.DateTime, nullable=False)
+    data_fim = db.Column(db.DateTime, nullable=False)
+
+    # Métricas de Engajamento
+    engagement_by_type = db.Column(db.JSON)
+    engagement_by_weekday = db.Column(db.JSON)
+    engagement_by_hour = db.Column(db.JSON)
+
+    # Posts de Maior Sucesso
+    top_posts = db.Column(db.JSON)
+
+    # Impacto das Legendas
+    engagement_by_caption_length = db.Column(db.JSON)
+
+    # Relacionamentos
+    empresa = db.relationship('Empresa', backref='instagram_metrics')
+    squad = db.relationship('Squad', backref='instagram_metrics')
+
+
+class Reuniao(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey('empresa.id'), nullable=False)
+    squad_id = db.Column(db.Integer, db.ForeignKey('squad.id'), nullable=False)
+    transcricao = db.Column(db.Text, nullable=False)
+    thread = db.Column(db.Text, nullable=False)
+    data_realizacao = db.Column(db.DateTime, nullable=False)
+
+    empresa = db.relationship('Empresa', backref='reunioes')
+    squad = db.relationship('Squad', backref='reunioes')
 
 '''
 

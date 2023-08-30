@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Reuniões</h1>
+    <a class="btn" href="{{ url_for('cadastrar_reuniao') }}">Cadastrar nova reunião</a>
+    <table class="styled-table">
+        <thead>
+            <tr>
+                <th>Empresa</th>
+                <th>Squad</th>
+                <th>Data da Reunião</th>
+                <th>Resumo da Transcrição</th>
+                <th>Resumo da Thread</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for reuniao in reunioes %}
+            <tr>
+                <td>{{ reuniao.empresa.nome_contato }}</td>
+                <td>{{ reuniao.squad.nome_squad }}</td>
+                <td>{{ reuniao.data_realizacao }}</td>
+                <td>{{ reuniao.transcricao[:50] }}...</td> <!-- Mostra os primeiros 50 caracteres -->
+                <td>{{ reuniao.thread[:50] }}...</td> <!-- Mostra os primeiros 50 caracteres -->
+                <td>
+                    <a href="{{ url_for('atualizar_reuniao', id=reuniao.id) }}" class="btn btn-primary">Atualizar</a>
+                    <button type="button" class="btn btn-danger" data-toggle="modal" data-target="#deleteModal{{reuniao.id}}">Deletar</button>
+
+                    <!-- Modal para exclusão -->
+                    <div class="modal fade" id="deleteModal{{reuniao.id}}" tabindex="-1" role="dialog" aria-labelledby="deleteModalLabel" aria-hidden="true">
+                        <div class="modal-dialog" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="deleteModalLabel">Deletar Reunião</h5>
+                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                                <div class="modal-body">
+                                    Tem certeza que deseja deletar esta reunião?
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                                    <form action="{{ url_for('deletar_reuniao', id=reuniao.id) }}" method="POST">
+                                        <input type="submit" class="btn btn-danger" value="Sim, deletar">
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

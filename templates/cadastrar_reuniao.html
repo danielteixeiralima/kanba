@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container">
+        <div class="row justify-content-center align-items-center" style="height:100vh">
+            <div class="col-4">
+                <h1 class="text-center mb-4 text-white">Cadastrar Nova Reunião</h1>
+                <div class="card" style="background-color: #333;">
+                    <div class="card-body">
+                        <form action="{{ url_for('cadastrar_reuniao') }}" method="POST">
+                            <div class="form-group">
+                                <label for="empresa" style="color: black;">Empresa:</label>
+                                <select class="form-control" id="empresa" name="empresa" required>
+                                    {% for empresa in empresas %}
+                                        <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="squad" style="color: black;">Squad:</label>
+                                <select class="form-control" id="squad" name="squad" required></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="transcricao" style="color: black;">Transcrição:</label>
+                                <textarea class="form-control" id="transcricao" name="transcricao" rows="4" required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="thread" style="color: black;">Thread:</label>
+                                <textarea class="form-control" id="thread" name="thread" rows="4" required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="data_realizacao" style="color: black;">Data da Reunião:</label>
+                                <input type="date" class="form-control" id="data_realizacao" name="data_realizacao" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-block">Cadastrar</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $("#empresa").change(function() {
+                var empresaId = $(this).val();
+                $.getJSON('/get_squads/' + empresaId, function(data) {
+                    var select = $('#squad');
+                    select.empty();
+                    $.each(data, function(key, value) {
+                        select.append('<option value="' + value.id + '">' + value.nome + '</option>');
+                    });
+                });
+            });
+        });
+    </script>
+{% endblock %}

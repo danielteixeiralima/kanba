@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container">
+        <div class="row justify-content-center align-items-center" style="height:100vh">
+            <div class="col-4">
+                <h1 class="text-center mb-4 text-white">Atualizar Reunião</h1>
+                <div class="card" style="background-color: #333;">
+                    <div class="card-body">
+                        <form action="{{ url_for('atualizar_reuniao', id=reuniao.id) }}" method="POST">
+                            <div class="form-group">
+                                <label for="transcricao" style="color: black;">Transcrição:</label>
+                                <textarea class="form-control" id="transcricao" name="transcricao" rows="4" required>{{ reuniao.transcricao }}</textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="thread" style="color: black;">Thread:</label>
+                                <textarea class="form-control" id="thread" name="thread" rows="4" required>{{ reuniao.thread }}</textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="data_realizacao" style="color: black;">Data da Reunião:</label>
+                                <input type="date" class="form-control" id="data_realizacao" name="data_realizacao" value="{{ reuniao.data_realizacao }}" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-block">Atualizar</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
