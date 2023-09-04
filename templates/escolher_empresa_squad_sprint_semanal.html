@@ -496,6 +496,57 @@
         }
 
         async function executeTasksInOrder() {
+            window.onload = function() {
+            // Inicializar a variável empresasTokens no localStorage
+            const empresasTokens = [
+                {
+                    nome: "Sette7",
+                    token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
+                    workspace: '1205278753339325',
+                    team: '1205278753339327'
+                },
+                {
+                    nome: "ES360",
+                    token: 'Bearer 1/1150237826145564:8aa093214a72b8a8c73eff3cb5a777ac',
+                    workspace: '16363265495050',
+                    team: '1205288598041717'
+                  },
+                  {
+                    nome: "Bizarte",
+                    token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
+                    workspace: '1205346334659692',
+                    team: '1205346334659694'
+                  },
+                  {
+                    nome: "Fabricio Noronha",
+                    token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
+                    workspace: '1205378427861979',
+                    team: '1205378427861981'
+                  },
+                  {
+                    nome: "Colégio Mopi",
+                    token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
+                    workspace: '1205380996045685',
+                    team: '1205380996045687'
+                  },
+                  {
+                    nome: "Acontece Portal de Noticias",
+                    token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
+                    workspace: '1205385688547984',
+                    team: '1205385688547986'
+                  },
+                  {
+                    nome: "Rafael Wolak",
+                    token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                    workspace: '1205407478863640',
+                    team: '1205407478863642'
+                  }
+
+
+                // Adicione mais empresas e tokens conforme necessário
+            ];
+            localStorage.setItem('empresasTokens', JSON.stringify(empresasTokens));
+        };
             await gerarTarefasEMetas();
             await deleteAsanaTasksFromSection();
             await createTasksFromTable();
