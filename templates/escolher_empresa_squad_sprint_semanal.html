@@ -22,6 +22,132 @@
                 });
         }
 
+       async function fetchAsanaKRs() {
+            const selectedEmpresaID = document.getElementById('empresa_id').value;
+            let response = await fetch(`/get_empresa_name?id=${selectedEmpresaID}`);
+            let data = await response.json();
+
+            if (data.error) {
+                console.error(data.error);
+                return;
+            }
+
+            const selectedEmpresaNome = data.nome;
+            const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+            const empresaSelected = empresasTokens.find(empresa => empresa.nome === selectedEmpresaNome);
+
+            if (!empresaSelected) {
+                console.log("empresaSelected não encontrado");
+                return;
+            }
+
+            const selectedSquadId = document.getElementById('squad_id').value;
+            const squadResponse = await fetch(`/get_squad_name?empresa_id=${selectedEmpresaID}&squad_id=${selectedSquadId}`);
+            const squadData = await squadResponse.json();
+
+            if (squadData.error) {
+                console.error(squadData.error);
+                return;
+            }
+
+            const selectedSquadName = squadData.squad_name;
+            const workSette = empresaSelected.workspace;
+            const allKRs = [];
+            let updatedCount = 0;
+
+            async function getKRIdByName(name) {
+                const response = await fetch('/get_kr_id?name=' + encodeURIComponent(name));
+                const data = await response.json();
+                return data.success ? data.kr_id : null;
+            }
+
+            const projectsResponse = await fetch(`https://app.asana.com/api/1.0/workspaces/${workSette}/projects?archived=false`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': empresaSelected.token,
+                    'Accept': 'application/json'
+                }
+            });
+
+            const projectsData = await projectsResponse.json();
+            const project = projectsData.data.find(p => p.name === selectedSquadName);
+
+            if (project) {
+                const projectId = project.gid;
+                const sectionsResponse = await fetch(`https://app.asana.com/api/1.0/projects/${projectId}/sections`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': empresaSelected.token,
+                        'Accept': 'application/json'
+                    }
+                });
+
+                const sectionsData = await sectionsResponse.json();
+                const krSection = sectionsData.data.find(section => section.name === "KR");
+
+                if (krSection) {
+                    const tasksResponse = await fetch(`https://app.asana.com/api/1.0/sections/${krSection.gid}/tasks`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': empresaSelected.token,
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    const tasksData = await tasksResponse.json();
+                    for (const task of tasksData.data) {
+                        const taskDetailResponse = await fetch(`https://app.asana.com/api/1.0/tasks/${task.gid}`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': empresaSelected.token,
+                                'Accept': 'application/json'
+                            }
+                        });
+
+                        const taskDetailData = await taskDetailResponse.json();
+                        const subtasksResponse = await fetch(`https://app.asana.com/api/1.0/tasks/${task.gid}/subtasks`, {
+                            method: 'GET',
+                            headers: {
+                                'Authorization': empresaSelected.token,
+                                'Accept': 'application/json'
+                            }
+                        });
+
+                        const subtasksData = await subtasksResponse.json();
+                        const krId = await getKRIdByName(taskDetailData.data.name);
+                        if (krId) {
+                            allKRs.push({
+                                id: krId,
+                                empresa: empresaSelected.nome,
+                                subtarefas: subtasksData.data.map(subtask => subtask.name),
+                                squad_name: project.name,
+                                squad_id: selectedSquadId,
+                                tarefa: taskDetailData.data.name,
+                                descricao: taskDetailData.data.notes
+                            });
+                        }
+                    }
+                }
+            }
+
+            for (const kr of allKRs) {
+                const response = await fetch('/cadastrar_metas', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(kr)
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    updatedCount++;
+                }
+            }
+            console.log("Total de KRs atualizados:", updatedCount);
+        }
+
+
         async function runAsanaFunctions(event) {
             event.preventDefault();
             await fetchAsanaTasksAndCompare();
@@ -316,6 +442,12 @@
             }
         }
 
+        async function executeTasksInOrder() {
+            await gerarTarefasEMetas();
+            await deleteAsanaTasksFromSection();
+            await createTasksFromTable();
+        }
+
         async function gerarTarefasEMetas() {
             const empresaId = await fetchEmpresaId();
             const squadId = await fetchSquadId();
@@ -349,12 +481,250 @@
                 console.error('Erro ao fazer a chamada fetch:', error);
             }
         }
+
+        async function createTasksFromTable() {
+            const tbody = document.getElementById('metas-table-body');
+            const rows = tbody.querySelectorAll('tr');
+            const tasks = [];
+
+            rows.forEach(row => {
+                const taskData = {
+                    name: row.querySelector('td:nth-child(1)').textContent,
+                    metaSemanal: row.querySelector('td:nth-child(3)').textContent,
+                    empresa: row.querySelector('td:nth-child(6)').textContent,
+                    squad: row.querySelector('td:nth-child(7)').textContent
+                };
+                tasks.push(taskData);
+            });
+
+            const empresaNome = localStorage.getItem('empresaSelecionada');
+            const empresaObj = empresasTokens.find(e => e.nome === empresaNome);
+
+            if (!empresaObj) {
+                console.error("Empresa não encontrada no array empresasTokens.");
+                return;
+            }
+
+            const workSette = empresaObj.workspace;
+            const projectsResponse = await fetch(`https://app.asana.com/api/1.0/workspaces/${workSette}/projects?archived=false`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': empresaObj.token,
+                    'Accept': 'application/json'
+                }
+            });
+            const projectsData = await projectsResponse.json();
+            for (const project of projectsData.data) {
+                const projectId = project.gid;
+                const sections = await getSections(projectId);
+                const targetSection = sections.find(section => section.name === "Meta semanal e Tarefas");
+
+                for (const task of tasks) {
+                    const url = "https://app.asana.com/api/1.0/tasks";
+                    const data = {
+                        "data": {
+                            "name": task.name,
+                            "notes": task.metaSemanal,
+                            "projects": [projectId]
+                        }
+                    };
+
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': empresaObj.token
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    const responseData = await response.json();
+
+                    if (responseData.data && responseData.data.gid) {
+                        const taskID = responseData.data.gid;
+                        const moveUrl = `https://app.asana.com/api/1.0/sections/${targetSection.gid}/addTask`;
+                        const moveData = {
+                            "data": {
+                                "task": taskID
+                            }
+                        };
+
+                        await fetch(moveUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': empresaObj.token
+                            },
+                            body: JSON.stringify(moveData)
+                        });
+
+                        console.log(`Tarefa '${task.name}' inserida no Asana com sucesso.`);
+                    }
+                }
+            }
+        }
+
+        async function createTasksFromTable() {
+            const tbody = document.getElementById('metas-table-body');
+            const rows = tbody.querySelectorAll('tr');
+            const tasks = [];
+
+            rows.forEach(row => {
+                const taskData = {
+                    name: row.querySelector('td:nth-child(1)').textContent,
+                    metaSemanal: row.querySelector('td:nth-child(3)').textContent,
+                    empresa: row.querySelector('td:nth-child(6)').textContent,
+                    squad: row.querySelector('td:nth-child(7)').textContent
+                };
+                tasks.push(taskData);
+            });
+
+            const empresaNome = localStorage.getItem('empresaSelecionada');
+            const empresaObj = empresasTokens.find(e => e.nome === empresaNome);
+
+            if (!empresaObj) {
+                console.error("Empresa não encontrada no array empresasTokens.");
+                return;
+            }
+
+            const workSette = empresaObj.workspace;
+            const projectsResponse = await fetch(`https://app.asana.com/api/1.0/workspaces/${workSette}/projects?archived=false`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': empresaObj.token,
+                    'Accept': 'application/json'
+                }
+            });
+            const projectsData = await projectsResponse.json();
+            for (const project of projectsData.data) {
+                const projectId = project.gid;
+                const sections = await getSections(projectId);
+                const targetSection = sections.find(section => section.name === "Meta semanal e Tarefas");
+
+                for (const task of tasks) {
+                    const url = "https://app.asana.com/api/1.0/tasks";
+                    const data = {
+                        "data": {
+                            "name": task.name,
+                            "notes": task.metaSemanal,
+                            "projects": [projectId]
+                        }
+                    };
+
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': empresaObj.token
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    const responseData = await response.json();
+
+                    if (responseData.data && responseData.data.gid) {
+                        const taskID = responseData.data.gid;
+                        const moveUrl = `https://app.asana.com/api/1.0/sections/${targetSection.gid}/addTask`;
+                        const moveData = {
+                            "data": {
+                                "task": taskID
+                            }
+                        };
+
+                        await fetch(moveUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': empresaObj.token
+                            },
+                            body: JSON.stringify(moveData)
+                        });
+
+                        console.log(`Tarefa '${task.name}' inserida no Asana com sucesso.`);
+                    }
+                }
+            }
+        }
+
+        async function getSections(projectID) {
+            const empresaNome = localStorage.getItem('empresaSelecionada');
+            const empresaObj = empresasTokens.find(e => e.nome === empresaNome);
+
+            if (!empresaObj) {
+                console.error("Empresa não encontrada no array empresasTokens.");
+                return [];
+            }
+
+            const url = `https://app.asana.com/api/1.0/projects/${projectID}/sections`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': empresaObj.token
+                }
+            });
+            const data = await response.json();
+            return data.data;
+        }
+
+        async function deleteAsanaTasksFromSection() {
+            const empresaNome = localStorage.getItem('empresaSelecionada');
+            const empresaObj = empresasTokens.find(e => e.nome === empresaNome);
+
+            if (!empresaObj) {
+                console.error("Empresa não encontrada no array empresasTokens.");
+                return;
+            }
+
+            const sectionsResponse = await fetch(`https://app.asana.com/api/1.0/projects/1205296856969933/sections`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': empresaObj.token,
+                    'Accept': 'application/json'
+                }
+            });
+            const sectionsData = await sectionsResponse.json();
+            const metasSection = sectionsData.data.find(section => section.name === "Meta semanal e Tarefas");
+            if (metasSection) {
+                const tasksResponse = await fetch(`https://app.asana.com/api/1.0/sections/${metasSection.gid}/tasks`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': empresaObj.token,
+                        'Accept': 'application/json'
+                    }
+                });
+                const tasksData = await tasksResponse.json();
+                for (const task of tasksData.data) {
+                    await fetch(`https://app.asana.com/api/1.0/tasks/${task.gid}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': empresaObj.token,
+                            'Accept': 'application/json'
+                        }
+                    });
+                }
+            }
+            alert('Tasks deletadas com sucesso!');
+        }
+        function salvarEmpresa() {
+            const empresaSelect = document.getElementById('empresa_id');
+            const empresaNome = empresaSelect.options[empresaSelect.selectedIndex].text;
+
+            localStorage.setItem('empresaSelecionada', empresaNome);
+        }
+
+        async function executeFunctions(event) {
+            event.preventDefault();
+            await fetchAsanaKRs();
+            salvarDadosNoLocalStorage();
+            runAsanaFunctions(event);
+        }
+
     </script>
 </head>
 
 <body onload="updateSquads();">
     <h2>Montar Sprint da Semana</h2>
-    <form action="/montar_sprint_semana" method="post" onsubmit="salvarDadosNoLocalStorage(); runAsanaFunctions(event);">
+    <form action="/montar_sprint_semana" method="post" onsubmit="executeFunctions(event);">
         <div>
             <label for="empresa_id">Selecione a Empresa:</label>
             <select name="empresa_id" id="empresa_id" onchange="updateSquads()">
@@ -367,7 +737,7 @@
             <label for="squad_id">Selecione o Squad:</label>
             <select name="squad_id" id="squad_id"></select>
         </div>
-        <input type="submit" value="Selecionar">
+        <input type="submit" onclick="salvarEmpresa()" value="Selecionar">
     </form>
     <section>
         <h3>FormsObjetivos</h3>
@@ -429,7 +799,7 @@
             {% endfor %}
         </ul>
     </section>
-    <button onclick="gerarTarefasEMetas()">OK</button>
+    <button onclick="executeTasksInOrder()">OK</button>
 </body>
 
 </html>

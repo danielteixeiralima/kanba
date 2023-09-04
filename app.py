@@ -2973,7 +2973,7 @@ def enviar_krs_feedback_chat_gpt(empresa_id, squad_id):
 
         f"O objetivo é estabelecer KRs que guiam a empresa ao cumprimento de seus objetivos. "
 
-        f"Responda apenas com o Json. Formate a resposta como um JSON com as seguintes chaves: objetivo, empresa, squad, kr, meta. Não adicione outras chaves além destas. Faça um json para cada kr com as chaves de cada um. Responda somente com textos, sem id.")
+        f"Responda apenas com o Json. Formate a resposta como um JSON com as seguintes chaves: objetivo, empresa, squad, kr, meta. Não adicione outras chaves além destas. Faça um json para cada kr com as chaves de cada um. Responda somente com textos, nao coloque id em nenhuma resposta.")
 
     print("Pergunta completa:", prompt)
 
@@ -3107,7 +3107,7 @@ def gerar_macro_acoes_prompt_gpt():
     krs_details = ", ".join([f"{kr.texto} (Meta: {kr.meta})" for kr in krs])
 
     prompt = (
-        f"GPT-4, com base nas informações das respostas dos participantes do squad {forms_objetivos_details} os objetivos aprovados para os proximos 90 dias {okrs_details}, "
+        f"GPT-4, com base nas informações das respostas dos participantes do squad {squad.nome_squad} os objetivos aprovados para os proximos 90 dias {okrs_details}, "
         f"analise e sintetize as informações mais relevantes sobre os Objetivos-Chave de Resultados (OKRs) já definidos e as informações da empresa. "
         f"A partir destas informações e considerando as respostas {forms_objetivos_details} pelo squad {squad.nome_squad} da empresa {empresa.nome_contato}, "
         f"e tendo em mente os objetivos {{{okrs_details} e esses KR's aprovados {krs_details}}}, "
@@ -3611,7 +3611,7 @@ def gerar_tarefas_metas_semanais():
 
     prompt = (
         f"Com base nas informações dos colaborares da empresa {forms_details}, pelo squad {squad.nome_squad}, os objetivos para o periodo de 90 dias {okrs_details}, os KR's medidores dos objetivos {krs_details}, as macro ações {macro_acoes_details}."
-        f"Considerando o progresso atual de cada KR, defina tarefas e metas da semana para a próxima semana que auxiliem no atingimento dos indicadores. "
+        f"Considerando o progresso atual de cada KR, sugira tarefas e metas da semana para a próxima semana que auxiliem no atingimento dos indicadores. "
         f"Cada tarefa sugerida e sua meta da semana devem ser direcionadas ao progresso dos KR's e alinhadas com as macro ações e os objetivos. "
         f"Cada tarefa e meta semanal deve ser expressa em uma única frase."
         f"Formate a resposta como um JSON com as seguintes chaves: tarefa, meta_semanal, squad, empresa. Não adicione outras chaves além destas. Responda apenas com o JSON")
@@ -3942,7 +3942,7 @@ def gerar_tarefas_metas_semanais_novo():
         f"FormsEquipe: {forms_objetivos_details}, OKRs: {okrs_details}, "
         f"KRs: {krs_details}, MacroAções: {macro_acoes_details}, "
         f"Tarefas em Andamento: {tarefas_andamento_details}, Tarefas Finalizadas: {tarefas_finalizadas_details}. "
-        f"Considerando o progresso atual de cada KR, defina tarefas e metas da semana para a próxima semana que auxiliem no atingimento dos indicadores. "
+        f"Considerando o progresso atual de cada KR, faça sugestões de tarefas e metas da semana para a próxima semana que auxiliem no atingimento dos indicadores. "
         f"Cada tarefa sugerida e sua meta da semana devem ser direcionadas ao progresso dos KR's e alinhadas com as macro ações e os objetivos. "
         f"Com base nessas informações, sugira tarefas para a proxima semana."
         f"Formate a resposta como um JSON com as seguintes chaves: tarefa, meta_semanal, squad, empresa. Não adicione outras chaves além destas. Responda apenas com o JSON"
@@ -4004,6 +4004,65 @@ def gerar_tarefas_metas_semanais_novo():
 
     return redirect(url_for('listar_tarefas_metas_semanais'))
 
+@app.route('/get_squad_name', methods=['GET'])
+def get_squad_name():
+    empresa_id = request.args.get('empresa_id')
+    squad_id = request.args.get('squad_id')
+
+    # Supondo que você tenha um modelo para Empresa e Squad, e um relacionamento entre eles
+    squad = Squad.query \
+        .join(Squad.empresa) \
+        .filter(Empresa.id == empresa_id, Squad.id == squad_id) \
+        .first()
+
+    if squad:
+        return jsonify(squad_name=squad.nome_squad)
+    else:
+        return jsonify(error="Erro ao buscar nome do squad"), 404
+
+@app.route('/get_empresa_name', methods=['GET'])
+def get_empresa_name():
+    empresa_id = request.args.get('id')
+    empresa = Empresa.query.get(empresa_id)
+    if empresa:
+        return jsonify({'nome': empresa.nome_contato})
+    else:
+        return jsonify({'error': 'Empresa não encontrada'}), 404
+
+@app.route('/get_kr_id', methods=['GET'])
+def get_kr_id():
+    try:
+        kr_name = request.args.get('name')
+        kr = KR.query.filter_by(texto=kr_name).first()
+        if kr:
+            return jsonify(success=True, kr_id=kr.id)
+        else:
+            return jsonify(success=False, message="KR não encontrado.")
+    except Exception as e:
+        return jsonify(success=False, message=str(e))
+@app.route('/cadastrar_metas', methods=['POST'])
+def cadastrar_metas():
+    try:
+        data = request.json
+        kr_id = data.get('id')
+        descricao = data.get('descricao')
+
+        # Certifique-se de que kr_id não seja nulo
+        if not kr_id:
+            return jsonify(success=False, message="ID do KR não fornecido.")
+
+        # Buscar o KR pelo ID usando Session.get()
+        kr = db.session.get(KR, kr_id)
+
+        # Se o KR existir e a descrição recebida for diferente da atual, atualizar o campo meta
+        if kr and descricao and kr.meta != descricao:
+            kr.meta = descricao
+            db.session.commit()
+            return jsonify(success=True, message="Meta atualizada com sucesso!")
+        else:
+            return jsonify(success=False, message="KR não encontrado ou descrição já é a mesma.")
+    except Exception as e:
+        return jsonify(success=False, message=str(e))
 
 @app.route('/get_empresaId', methods=['GET'])
 def get_empresaId():
