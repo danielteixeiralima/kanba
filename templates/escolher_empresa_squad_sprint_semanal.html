@@ -685,6 +685,7 @@
 
             const empresaNome = localStorage.getItem('empresaSelecionada');
             const empresaObj = empresasTokens.find(e => e.nome === empresaNome);
+            console.log(empresaObj)
 
             if (!empresaObj) {
                 console.error("Empresa não encontrada no array empresasTokens.");
