@@ -668,7 +668,7 @@
 
         async function deleteAsanaTasksFromSection() {
             const empresaNome = localStorage.getItem('empresaSelecionada');
-            empresasTokens = localStorage.getItem('empresasTokens')
+            const empresasTokens = localStorage.getItem('empresasTokens')
             const empresaObj = empresasTokens.find(e => e.nome === empresaNome);
 
             if (!empresaObj) {
