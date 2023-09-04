@@ -7,7 +7,7 @@
     <title>Montar Sprint da Semana</title>
     <script>
 
-    window.onload = function() {
+
             // Inicializar a variável empresasTokens no localStorage
             const empresasTokens = [
                 {
@@ -54,10 +54,6 @@
                   }
 
 
-                // Adicione mais empresas e tokens conforme necessário
-            ];
-            localStorage.setItem('empresasTokens', JSON.stringify(empresasTokens));
-        };
 
         function updateSquads() {
             const empresaId = document.getElementById('empresa_id').value;
