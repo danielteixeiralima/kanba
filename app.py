@@ -3903,12 +3903,15 @@ def get_squads_sprint(empresa_id):
 @app.route('/gerar_tarefas_metas_semanais_novo', methods=['POST'])
 def gerar_tarefas_metas_semanais_novo():
     empresa_id = request.json['empresa_id']
+    print(empresa_id)
     squad_id = request.json['squad_id']
     print(f"Empresa ID: {empresa_id}, Squad ID: {squad_id}")
 
     empresa = Empresa.query.filter_by(id=empresa_id).first()
     squad = Squad.query.filter_by(id=squad_id).first()
     forms_objetivos = FormsObjetivos.query.filter_by(squad_id=squad_id).all()
+    response_data = []
+
 
     forms_objetivos_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
     okrs = OKR.query.filter_by(squad_id=squad_id).all()
@@ -3994,6 +3997,7 @@ def gerar_tarefas_metas_semanais_novo():
                 meta_semanal=meta_semanal
             )
             db.session.add(tarefa_metas_semanais)
+            response_data.append({"tarefa": tarefa, "meta_semanal": meta_semanal, "squad": squad_name, "empresa": empresa_name})
 
         # Tente fazer o commit
         db.session.commit()
@@ -4002,8 +4006,31 @@ def gerar_tarefas_metas_semanais_novo():
         print(f"Erro ao adicionar os dados ao banco: {e}")
         db.session.rollback()
 
-    return redirect(url_for('listar_tarefas_metas_semanais'))
+    return jsonify({'status': 'success', 'data': response_data})
 
+@app.route('/verificar_tarefa_existente', methods=['POST'])
+def verificar_tarefa_existente():
+    tarefa_data = request.json['tarefa']
+
+    empresa = tarefa_data['empresa']
+    squad_name = tarefa_data['squad_name']
+    tarefa_nome = tarefa_data['tarefa']
+
+    tarefa_existente = TarefasAndamento.query.filter_by(empresa=empresa, squad_name=squad_name, tarefa=tarefa_nome).first()
+
+    return jsonify(existe=bool(tarefa_existente))
+
+@app.route('/verificar_tarefa_concluida_existente', methods=['POST'])
+def verificar_tarefa_concluida_existente():
+    tarefa_data = request.json['tarefa']
+
+    empresa = tarefa_data['empresa']
+    squad_name = tarefa_data['squad_name']
+    tarefa_nome = tarefa_data['tarefa']
+
+    tarefa_existente = TarefasFinalizadas.query.filter_by(empresa=empresa, squad_name=squad_name, tarefa=tarefa_nome).first()
+
+    return jsonify(existe=bool(tarefa_existente))
 @app.route('/get_squad_name', methods=['GET'])
 def get_squad_name():
     empresa_id = request.args.get('empresa_id')
