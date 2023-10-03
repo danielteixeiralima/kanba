@@ -88,21 +88,23 @@
 
 
 
-        function updateSquads() {
-            const empresaId = document.getElementById('empresa_id').value;
-            fetch('/get_squads_sprint/' + empresaId)
-                .then(response => response.json())
-                .then(data => {
-                    const squadDropdown = document.getElementById('squad_id');
-                    squadDropdown.innerHTML = "";
-                    data.forEach(squad => {
-                        const option = document.createElement('option');
-                        option.value = squad.id;
-                        option.innerText = squad.nome;
-                        squadDropdown.appendChild(option);
+              function updateSquads() {
+                const empresaId = document.getElementById('empresa_id').value;
+                fetch('/get_squads_sprint/' + empresaId)
+                    .then(response => response.json())
+                    .then(data => {
+                        const squadDropdown = document.getElementById('squad_id');
+                        squadDropdown.innerHTML = "";
+                        data.forEach(squad => {
+                            const option = document.createElement('option');
+                            option.value = squad.id;
+                            option.innerText = squad.nome;
+                            squadDropdown.appendChild(option);
+                        });
+                        // Mova a chamada para salvarDadosNoLocalStorage para aqui
+                        salvarDadosNoLocalStorage();
                     });
-                });
-        }
+            }
 
        async function fetchAsanaKRs() {
 
@@ -586,9 +588,10 @@
         function salvarDadosNoLocalStorage() {
             const empresaDropdown = document.getElementById('empresa_id');
             const squadDropdown = document.getElementById('squad_id');
+            squadDropdown.selectedIndex = 0; // Seleciona o primeiro squad da lista
             const empresaName = empresaDropdown.options[empresaDropdown.selectedIndex].text;
             const squadName = squadDropdown.options[squadDropdown.selectedIndex].text;
-
+            console.log(squadName)
             localStorage.setItem('empresaName', empresaName);
             localStorage.setItem('squadName', squadName);
         }
@@ -615,10 +618,13 @@
         async function fetchSquadId() {
             const squadName = localStorage.getItem('squadName');
             const empresaName = localStorage.getItem('empresaName');
+            console.log(empresaName)
+            console.log(squadName)
 
             try {
                 const response = await fetch(`/get_squad_id?squad_name=${encodeURIComponent(squadName)}&empresa_name=${encodeURIComponent(empresaName)}`);
                 const data = await response.json();
+                console.log(data)
                 if (data.success) {
                     return data.squad_id;
                 } else {
@@ -1063,11 +1069,11 @@
 </head>
 
 <body onload="updateSquads();">
-    <h2>Montar Sprint da Semana - 5</h2>
+    <h2>Montar Sprint da Semana - 6</h2>
     <form action="/montar_sprint_semana" method="post" onsubmit="executeFunctions(event);">
         <div>
             <label for="empresa_id">Selecione a Empresa:</label>
-            <select name="empresa_id" id="empresa_id" onchange="updateSquads(); salvarDadosNoLocalStorage();">
+            <select name="empresa_id" id="empresa_id" onchange="updateSquads();">
                 {% for empresa in empresas %}
                 <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
                 {% endfor %}
