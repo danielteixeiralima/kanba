@@ -3948,7 +3948,7 @@ def gerar_tarefas_metas_semanais_novo():
         f"Considerando o progresso atual de cada KR, faça sugestões de tarefas e metas da semana para a próxima semana que auxiliem no atingimento dos indicadores. "
         f"Cada tarefa sugerida e sua meta da semana devem ser direcionadas ao progresso dos KR's e alinhadas com as macro ações e os objetivos. "
         f"Com base nessas informações, sugira tarefas para a proxima semana."
-        f"Formate a resposta como um JSON com as seguintes chaves: tarefa, meta_semanal, squad, empresa. Não adicione outras chaves além destas. Responda apenas com o JSON"
+        f"Formate a resposta como um JSON com as seguintes chaves: tarefa, meta_semanal, squad, empresa. Não adicione outras chaves além destas. Responda apenas com o JSON sem as chaves ([])"
     )
 
 
@@ -4007,6 +4007,8 @@ def gerar_tarefas_metas_semanais_novo():
         db.session.rollback()
 
     return jsonify({'status': 'success', 'data': response_data})
+
+
 
 @app.route('/verificar_tarefa_existente', methods=['POST'])
 def verificar_tarefa_existente():

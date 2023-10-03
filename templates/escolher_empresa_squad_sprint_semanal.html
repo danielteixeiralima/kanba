@@ -1,6 +1,15 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
 
+{% block content %}
+<style>
+    .custom-select {
+        color: black;
+        background-color: white;
+    }
+    .custom-select option {
+        color: black;
+    }
+</style>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,48 +19,72 @@
 
             // Inicializar a variável empresasTokens no localStorage
             const empresasTokens = [
-                {
-                    nome: "Sette7",
-                    token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
-                    workspace: '1205278753339325',
-                    team: '1205278753339327'
-                },
-                {
-                    nome: "ES360",
-                    token: 'Bearer 1/1150237826145564:8aa093214a72b8a8c73eff3cb5a777ac',
-                    workspace: '16363265495050',
-                    team: '1205288598041717'
-                  },
-                  {
-                    nome: "Bizarte",
-                    token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
-                    workspace: '1205346334659692',
-                    team: '1205346334659694'
-                  },
-                  {
-                    nome: "Fabricio Noronha",
-                    token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
-                    workspace: '1205378427861979',
-                    team: '1205378427861981'
-                  },
-                  {
-                    nome: "Colégio Mopi",
-                    token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
-                    workspace: '1205380996045685',
-                    team: '1205380996045687'
-                  },
-                  {
-                    nome: "Acontece Portal de Noticias",
-                    token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
-                    workspace: '1205385688547984',
-                    team: '1205385688547986'
-                  },
-                  {
-                    nome: "Rafael Wolak",
-                    token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
-                    workspace: '1205407478863640',
-                    team: '1205407478863642'
-                  }]
+            {
+                nome: "Sette7",
+                token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
+                workspace: '1205278753339325',
+                team: '1205278753339327'
+            },
+            {
+                nome: "ES360",
+                token: 'Bearer 1/1150237826145564:8aa093214a72b8a8c73eff3cb5a777ac',
+                workspace: '16363265495050',
+                team: '1205288598041717'
+              },
+              {
+                nome: "Bizarte",
+                token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
+                workspace: '1205346334659692',
+                team: '1205346334659694'
+              },
+              {
+                nome: "Fabricio Noronha",
+                token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
+                workspace: '1205378427861979',
+                team: '1205378427861981'
+              },
+              {
+                nome: "Colégio Mopi",
+                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                workspace: '1205380996045685',
+                team: '1205380996045687'
+              },
+              {
+                nome: "Acontece Portal de Noticias",
+                token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
+                workspace: '1205385688547984',
+                team: '1205385688547986'
+              },
+              {
+                nome: "Rafael Wolak",
+                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                workspace: '1205407478863640',
+                team: '1205407478863642'
+              },
+              {
+                nome: "Ciclo Organico",
+                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                workspace: '1205427390711884',
+                team: '1205427390711886'
+              },
+              {
+                nome: "Raul Oliveira",
+                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                workspace: '1205479312230476',
+                team: '1205479312230478'
+              },
+              {
+                nome: "Big Big Material de Construção",
+                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                workspace: '1205499842562298',
+                team: '1205499842562300'
+              },
+              {
+                nome: "Vila Recreio",
+                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                workspace: '1205540470200318',
+                team: '1205540470200320'
+              }]
 
 
 
@@ -86,6 +119,7 @@
             const selectedEmpresaNome = data.nome;
             const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
             const empresaSelected = empresasTokens.find(empresa => empresa.nome === selectedEmpresaNome);
+            console.log(empresaSelected)
 
             if (!empresaSelected) {
                 console.log("empresaSelected não encontrado");
@@ -122,6 +156,7 @@
             });
 
             const projectsData = await projectsResponse.json();
+            console.log(projectsData)
             const project = projectsData.data.find(p => p.name === selectedSquadName);
 
             if (project) {
@@ -310,6 +345,7 @@
                     }
                 });
                 const projectsData = await projectsResponse.json();
+                console.log(projectsData)
                 projectsGid = projectsData.data[0].gid
                 projectsName = projectsData.data[0].name
                 console.log(projectsName)
@@ -699,7 +735,7 @@
                   },
                   {
                     nome: "Colégio Mopi",
-                    token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
+                    token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
                     workspace: '1205380996045685',
                     team: '1205380996045687'
                   },
@@ -731,6 +767,7 @@
             await deleteAsanaTasksFromSection()
             await createTasksFromTable(metas);
         } else {
+            alert("Erro ao gerar as tarefas!")
             console.error('No metas data returned from gerarTarefasEMetas.');
         }
 
@@ -1000,3 +1037,4 @@
 </body>
 
 </html>
+{% endblock %}
