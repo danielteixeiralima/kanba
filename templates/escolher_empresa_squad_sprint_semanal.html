@@ -599,6 +599,7 @@
             try {
                 const response = await fetch(`/get_empresaId?empresa_name=${encodeURIComponent(empresaName)}`);
                 const data = await response.json();
+                console.log(data)
                 if (data.success) {
                     return data.empresa_id;
                 } else {
@@ -1042,6 +1043,12 @@
                 token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
                 workspace: '1205540470200318',
                 team: '1205540470200320'
+              },
+              {
+                nome: "VAAAAAAAAAAAAAAAASCOOOOOOOOOOOOOOOo",
+                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                workspace: '1205540470200318',
+                team: '1205540470200320'
               }]
 
               localStorage.setItem('empresasTokens', JSON.stringify(empresasTokens));
@@ -1056,7 +1063,7 @@
 </head>
 
 <body onload="updateSquads();">
-    <h2>Montar Sprint da Semana - 1</h2>
+    <h2>Montar Sprint da Semana - 2</h2>
     <form action="/montar_sprint_semana" method="post" onsubmit="executeFunctions(event);">
         <div>
             <label for="empresa_id">Selecione a Empresa:</label>
