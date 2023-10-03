@@ -3751,7 +3751,8 @@ def get_squad_id():
     try:
         squad_name = request.args.get('squad_name')
         empresa_name = request.args.get('empresa_name')
-        print(squad_name, empresa_name)
+        print("Nome do squad: " + squad_name)
+        print("Nome da empresa: " + empresa_name)
 
         # Filtrando por nome_squad e nome da empresa usando join
         squad = db.session.query(Squad).join(Empresa).filter(
