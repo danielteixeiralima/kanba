@@ -1055,7 +1055,7 @@
 
             event.preventDefault();
             await fetchAsanaKRs();
-            salvarDadosNoLocalStorage();
+
             runAsanaFunctions(event);
         }
 
@@ -1063,11 +1063,11 @@
 </head>
 
 <body onload="updateSquads();">
-    <h2>Montar Sprint da Semana - 3</h2>
+    <h2>Montar Sprint da Semana - 4</h2>
     <form action="/montar_sprint_semana" method="post" onsubmit="executeFunctions(event);">
         <div>
             <label for="empresa_id">Selecione a Empresa:</label>
-            <select name="empresa_id" id="empresa_id" onchange="updateSquads()">
+            <select name="empresa_id" id="empresa_id" onchange="updateSquads(); salvarDadosNoLocalStorage();">
                 {% for empresa in empresas %}
                 <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
                 {% endfor %}
