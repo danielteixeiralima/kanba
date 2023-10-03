@@ -4097,7 +4097,7 @@ def cadastrar_metas():
 def get_empresaId():
     try:
         empresa_name = request.args.get('empresa_name')
-
+        print("Empresa: " + empresa_name)
         empresa = Empresa.query.filter_by(nome_contato=empresa_name).first()
 
         if not empresa:
@@ -4105,7 +4105,6 @@ def get_empresaId():
         return jsonify(success=True, empresa_id=empresa.id)
     except Exception as e:
         return jsonify(success=False, error=str(e))
-
 
 
 
