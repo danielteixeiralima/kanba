@@ -2810,47 +2810,41 @@ def enviar_krs():
            "\n - Ambicioso, mas Realista: Os KRs devem ser desafiadores, mas também alcançáveis."
            "\n - Tempo Definido: Cada KR deve ter um prazo claro, neste caso, 90 dias."
            "\n - Evite KR Vinculados a Ações: KRs são resultados que você quer alcançar, não as coisas que você vai fazer para chegar lá."
-
-           "Veja alguns exemplos:"
-           "\n - Aumentar a receita trimestral em 15%."
-           "\n - Reduzir o churn de clientes em 5%."
-           "\n - Aumentar a satisfação do cliente em 15% (medido por pesquisas de satisfação)."
-           "\n - Aumentar a participação de mercado em 5%."
-           "\n - Aumentar a pontuação Net Promoter Score (NPS) em 10 pontos."
-
-
-           "2. Utilizando esta síntese, crie KRs para o próximo ciclo de 90 dias que atendam aos critérios SMART. Lembre-se de representar mudanças quantitativas usando a variável 'X', como 'aumentar de X% para Y%' ou 'atingir X vendas'. "
-
-           "3. Avalie e, se necessário, combine KRs correlatos para ter um número mínimo e eficaz de KRs para cada objetivo. "
-
-           "4. Ajuste a redação dos KRs para que sejam claros e alinhados ao tom da empresa, sem incluir números específicos, mas usando 'X'. "
-
-           "5. Liste os KRs definidos, justificando sua criação e alinhamento com os respectivos objetivos. "
-
-           "Responda apenas com o Json. Formate a resposta como um JSON com as seguintes chaves: objetivo, empresa, squad, kr, meta. Não adicione outras chaves além destas. Faça um json para cada kr com as chaves de cada um. Responda somente com textos, sem id.")
+            "\n Baseado nas informações fornecidas, forneça sugestões de KRs para o próximo ciclo de 90 dias. "
+            "\n Por favor, responda no seguinte formato JSON, evitando incluir IDs nos objetivos:"
+            "\n ["
+            "\n   {"
+            "\n     'objetivo': 'descrição do objetivo',"
+            "\n     'empresa': 'nome da empresa',"
+            "\n     'squad': 'nome do squad',"
+            "\n     'kr': 'descrição do KR',"
+            "\n     'meta': 'meta para o KR'"
+            "\n   },"
+            "\n   ... outros KRs ..."
+            "\n ]")
 
     print("Pergunta completa:", prompt)
 
     pergunta_id = str(uuid.uuid4())
     resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
-    print("Resposta Bruta do GPT-4:", resposta)  # <-- print da resposta bruta aqui
+    print("Resposta Bruta do GPT-4:", resposta)
 
-    # Limpeza da resposta:
-    inicio_json = resposta.find('[')
-    fim_json = resposta.rfind(']') + 1
-    resposta_limpa = resposta[inicio_json:fim_json]
-
+    # Correção na formatação do JSON:
+    resposta_corrigida = resposta.replace("'", '"')
     try:
-        krs_list = json.loads(resposta_limpa)
+        krs_list = json.loads(resposta_corrigida)
     except json.JSONDecodeError as e:
         print("JSONDecodeError:", e)
-        print("Resposta Limpa:", resposta_limpa)
+        print("Resposta corrigida:", resposta_corrigida)
         return redirect('/')
 
     KrGeradoChatAprovacao.query.filter_by(empresa_id=empresa.id, squad_id=squad.id).delete()
 
     for kr_data in krs_list:
         objetivo = kr_data.get('objetivo')
+        # Remover o ID do objetivo
+        objetivo = re.sub(r'\(ID: \d+\)', '', objetivo).strip()
+        # O restante do código permanece igual
         descricao_KR = kr_data.get('kr')
         meta_KR = kr_data.get('meta')
 
@@ -2863,50 +2857,6 @@ def enviar_krs():
         )
         db.session.add(kr)
         print(f"Adicionando KR: Objetivo: {objetivo}, Descrição: {descricao_KR}, Meta: {meta_KR}")
-
-    try:
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        print(f"Erro ao inserir no banco de dados: {e}")
-
-    return redirect('/')
-
-    pergunta_id = str(uuid.uuid4())
-    resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
-    print("Resposta Bruta do GPT-4:", resposta)  # <-- print da resposta bruta aqui
-    resposta_corrigida = '[' + resposta.replace('}\n{', '},\n{') + ']'
-
-    try:
-        krs_list = json.loads(resposta_corrigida)
-        krs_list_inner = krs_list[0] if krs_list else []
-    except json.JSONDecodeError as e:
-        print("JSONDecodeError:", e)
-        print("Resposta corrigida:", resposta_corrigida)
-        return redirect('/')
-
-    KrGeradoChatAprovacao.query.filter_by(empresa_id=empresa.id, squad_id=squad.id).delete()
-
-    for kr_data in krs_list_inner:
-        objetivo = kr_data.get('objetivo')
-
-        for i in range(1, 4):  # Loop through the three KRs
-            descricao_KR_key = f'KR_{i}'
-            meta_KR_key = f'MetaKR_{i}'
-
-            if descricao_KR_key in kr_data and meta_KR_key in kr_data:
-                descricao_KR = kr_data[descricao_KR_key]
-                meta_KR = kr_data[meta_KR_key]
-
-                kr = KrGeradoChatAprovacao(
-                    objetivo=objetivo,
-                    empresa_id=empresa.id,
-                    squad_id=squad.id,
-                    KR=descricao_KR,
-                    meta=meta_KR
-                )
-                db.session.add(kr)
-                print(f"Adicionando KR: Objetivo: {objetivo}, Descrição: {descricao_KR}, Meta: {meta_KR}")  # <-- print adicional aqui
 
     try:
         db.session.commit()
