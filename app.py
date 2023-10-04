@@ -2529,43 +2529,43 @@ def enviar_forms():
     squad = Squad.query.filter_by(id=squad_id).first()
     forms_objetivos = FormsObjetivos.query.filter_by(squad_id=squad_id).all()
 
+    # Formatar os detalhes dos formulários em uma string legível
+    forms_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
+
     # Deletar objetivos antigos relacionados à empresa específica
     objetivos_antigos = ObjetivoGeradoChatAprovacao.query.filter_by(empresa_id=empresa_id).all()
     for objetivo in objetivos_antigos:
         db.session.delete(objetivo)
     db.session.commit()
 
-    # Formatar os detalhes dos formulários em uma string legível
-    forms_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
-    #prompt = "Com base nas respostas fornecidas pelo squad " + squad.nome_squad + " da empresa " + empresa.nome_contato + ", quais objetivos podem ser sugeridos para alinhamento com as metas e missão? Responda apenas com o json com as seguinte chaves: objetivo, empresa, squad, id_objetivo. Formulário: " + forms_details
     prompt = (
-        f"Com base nas informações dos arquivos {forms_details} considerando as singularidades da empresa {empresa.nome_contato} e as perspectivas do squad {squad.nome_squad}, faça o seguinte:"
-        "\n\n1. Sintetize as informações relevantes dos arquivos que influenciam a definição dos OKRs."
-        "\n\n2. Ao formular os objetivos, siga estas boas práticas:"
-        "\n - Clareza: Escreva objetivos de forma clara e concisa."
-        "\n - Especificidade: Seja específico sobre o que deseja alcançar."
-        "\n - Alinhamento: Alinhe os objetivos com a visão e missão da empresa."
-        "\n - Foco: Estabeleça no máximo 3 objetivos."
-        "\n - Resultados, Não Ações: Objetivos devem expressar resultados desejados."
-        "\n - Mensurabilidade: Redija objetivos mensuráveis para o futuro."
-        "\n - Relevância: Objetivos devem ser relevantes para a empresa."
-        "\n - Tempo: Estabeleça um prazo de 90 dias para os objetivos."
-        "\n - Facilidade de Memorização: Formule objetivos fáceis de lembrar."
-        "\n - Inspiradores: Os objetivos devem inspirar e motivar a equipe."
-        "\n - Evite Jargões: Use linguagem simples e clara."
-        "\n\n3. Veja alguns exemplos de redação de objetivos:"
-        "\n\nLinguagem Mais Formal:"
-        "\n - Maximizar a eficiência operacional."
-        "\n - Estabelecer liderança de mercado na região sudeste."
-        "\n - Garantir a satisfação do cliente."
-        "\n\nLinguagem Mais Lúdica:"
-        "\n - Voar mais alto com inovações tecnológicas."
-        "\n - Transformar cada cliente em um fã apaixonado."
-        "\n - Plantar sementes hoje para colher sucessos amanhã."
-        "\n\n4. Elabore até três objetivos para o próximo ciclo de 90 dias seguindo os critérios SMART."
-        "\n\n5. Avalie e combine objetivos correlatos ou consecutivos."
+        f"Com base nos arquivos {forms_details}, singularidades da empresa {empresa.nome_contato} e perspectivas do squad {squad.nome_squad}, faça o seguinte:"
+        "\n\n1. Extraia informações dos arquivos que afetam os OKRs."
+        "\n\n2. Ao formular os objetivos, considere:"
+        "\n - Ser claro e conciso."
+        "\n - Ser específico e alinhado à visão da empresa."
+        "\n - Definir no máximo 3 objetivos focados em resultados, não ações."
+        "\n - Redigir objetivos mensuráveis, relevantes e com prazo de 90 dias."
+        "\n - Usar linguagem simples e inspiradora."
+        "\n\n3. Exemplos de objetivos:"
+        "\n - Formal: Maximizar eficiência operacional."
+        "\n - Lúdico: Transformar clientes em fãs apaixonados."
+        "\n\n4. Elabore até três objetivos SMART para o próximo ciclo de 90 dias."
+        "\n\n5. Combine objetivos semelhantes ou consecutivos."
         "\n\n6. Revise a redação dos objetivos."
-        "\n\n Responda apenas com o json com as seguinte chaves: objetivo, empresa, squad. faça uma chave para cada objetivo com essas chaves. Não responda nada mais que o Json.")
+        "\n\n8. Não defina os KR's, somente os objetivos."
+        f"Por favor, responda no seguinte formato JSON:\n"
+        f"{{\n"
+        f"  \"objetivo\": [\n"
+        f"      \"Descrição do objetivo 1\",\n"
+        f"      \"Descrição do objetivo 2\",\n"
+        f"      \"Descrição do objetivo 3\"\n"
+        f"  ],\n"
+        f"  \"empresa\": \"{empresa.nome_contato}\",\n"
+        f"  \"squad\": \"{squad.nome_squad}\"\n"
+        f"}}\n\n"
+        f"Certifique-se de que a resposta contenha apenas as chaves 'objetivo', 'empresa' e 'squad', e que 'objetivo' seja uma lista de strings com as descrições dos objetivos."
+    )
 
     print("Pergunta completa:", prompt)
 
@@ -2575,24 +2575,35 @@ def enviar_forms():
 
     # Verificar e carregar a resposta como JSON
     try:
-        objetivos_json = json.loads(resposta)
+        resposta_json = json.loads(resposta)
     except json.JSONDecodeError as e:
         print("Erro na decodificação do JSON:", resposta)
         return f"Erro ao decodificar resposta da GPT: {e}", 500
 
-    # Adicionar cada objetivo ao banco de dados
-    for objetivo_data in objetivos_json:
-        objetivo = ObjetivoGeradoChatAprovacao(
-            objetivo=objetivo_data["objetivo"],
-            empresa_id=empresa.id,
-            squad_id=squad.id
-        )
-        db.session.add(objetivo)
-    db.session.commit()
+    objetivos_data = resposta_json.get('objetivo', [])
 
-    return redirect('/')
+    response_data = []
+    try:
+        for objetivo_text in objetivos_data:
+            # Adicionar cada objetivo ao banco de dados
+            objetivo = ObjetivoGeradoChatAprovacao(
+                objetivo=objetivo_text,
+                empresa_id=empresa.id,
+                squad_id=squad.id
+            )
+            db.session.add(objetivo)
+            response_data.append({
+                'objetivo': objetivo_text,
+                'empresa': resposta_json.get('empresa'),
+                'squad': resposta_json.get('squad')
+            })
 
+        db.session.commit()
+    except Exception as e:
+        print(f"Erro ao adicionar os dados ao banco: {e}")
+        db.session.rollback()
 
+    return redirect('/listar_sugestao_objetivos_gpt')
 
 @app.route('/listar_sugestao_objetivos_gpt')
 def listar_sugestao_objetivos_gpt():
