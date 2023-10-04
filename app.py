@@ -2564,7 +2564,7 @@ def enviar_forms():
         f"  \"empresa\": \"{empresa.nome_contato}\",\n"
         f"  \"squad\": \"{squad.nome_squad}\"\n"
         f"}}\n\n"
-        f"Certifique-se de que a resposta contenha apenas as chaves 'objetivo', 'empresa' e 'squad', e que 'objetivo' seja uma lista de strings com as descrições dos objetivos."
+        f"IMPORTANTE: Certifique-se de que a resposta contenha apenas as chaves 'objetivo', 'empresa' e 'squad', e que 'objetivo' seja uma lista de strings com as descrições dos objetivos."
     )
 
     print("Pergunta completa:", prompt)
