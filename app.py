@@ -3895,6 +3895,16 @@ def gerar_tarefas_metas_semanais_novo():
 
 
     forms_objetivos_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
+    # Solicitar ao ChatGPT-4 que resuma forms_objetivos_details
+    prompt_resumo = f"Por favor, resuma a seguinte informação para metade do tamanho: {forms_objetivos_details}"
+
+    pergunta_id_resumo = str(uuid.uuid4())
+    messages_resumo = []
+    print("Prompt de resumo:", prompt_resumo)
+
+    forms_objetivos_resumidos, messages_resumo = perguntar_gpt(prompt_resumo, pergunta_id_resumo, messages_resumo)
+    print("Resposta de resumo:", forms_objetivos_resumidos)
+
     okrs = OKR.query.filter_by(squad_id=squad_id).all()
     krs = KR.query.filter_by(squad_id=squad_id).all()
     tarefas_andamento = TarefasAndamento.query.filter_by(squad_id=squad_id).all()
@@ -3914,7 +3924,7 @@ def gerar_tarefas_metas_semanais_novo():
     """
     prompt = (
         f"Informações da empresa {empresa.nome_contato} e squad {squad.nome_squad}:"
-        f"FormsObjetivos: {forms_objetivos_details}, OKRs: {okrs_details}, "
+        f"FormsObjetivos: {forms_objetivos_resumidos}, OKRs: {okrs_details}, "
         f"KRs: {krs_details}, MacroAções: {macro_acoes_details}, "
         f"Tarefas em Andamento: {tarefas_andamento_details}, Tarefas Finalizadas: {tarefas_finalizadas_details}. "
         f"Com base nessas informações, sugira tarefas para a proxima semana."
@@ -3923,7 +3933,7 @@ def gerar_tarefas_metas_semanais_novo():
     """
     prompt = (
         f"Informações da empresa {empresa.nome_contato} e squad {squad.nome_squad}:"
-        f"FormsEquipe: {forms_objetivos_details}, OKRs: {okrs_details}, "
+        f"FormsEquipe: {forms_objetivos_resumidos}, OKRs: {okrs_details}, "
         f"KRs: {krs_details}, MacroAções: {macro_acoes_details}, "
         f"Tarefas em Andamento: {tarefas_andamento_details}, Tarefas Finalizadas: {tarefas_finalizadas_details}. "
         f"Considerando o progresso atual de cada KR, faça sugestões de tarefas e metas da semana para a próxima semana que auxiliem no atingimento dos indicadores. "
