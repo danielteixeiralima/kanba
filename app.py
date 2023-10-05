@@ -3746,37 +3746,14 @@ def get_squad_id():
     except Exception as e:
         return jsonify(success=False, error=str(e))
 
-@app.route('/get_tarefas_concluidas', methods=['GET'])
-def get_tarefas_concluidas():
-    try:
-        tarefas = TarefasFinalizadas.query.all()
-        result = []
-        for tarefa in tarefas:
-            print(tarefa.subtarefas)
-            result.append({
-                'id': tarefa.id,  # Inclua o ID da tarefa aqui
-                'nome_tarefa': tarefa.tarefa,
-                'desc': tarefa.descricao_empresa if hasattr(tarefa, 'descricao_empresa') else '',
-                'pos': tarefa.squad_name,
-                'start': tarefa.data_inclusao.strftime('%Y-%m-%d') if hasattr(tarefa, 'data_inclusao') else '',
-                # Ajuste se necessário
-                'close': tarefa.data_conclusao.strftime('%Y-%m-%d') if tarefa.data_conclusao else '',
-                'nome_empresa': tarefa.empresa,
-                'nome_squad': tarefa.squad_name,
-                'plataforma': '',
-                'subtarefas': tarefa.subtarefas  # Adicionando o campo subtarefas
-
-            })
-        return jsonify(result)
-    except Exception as e:
-        return jsonify(error=str(e))
-
-
-@app.route('/get_tarefas_atuais', methods=['GET'])
+@app.route('/get_tarefas_atuais', methods=['POST'])
 def get_tarefas_atuais():
     try:
-        tarefas = TarefasAndamento.query.all()
-        print(tarefas)
+        data = request.json
+        empresa = data['empresaName']
+        squad_name = data['squadName']
+
+        tarefas = TarefasAndamento.query.filter_by(empresa=empresa, squad_name=squad_name).all()
         result = []
         for tarefa in tarefas:
             result.append({
@@ -3788,8 +3765,34 @@ def get_tarefas_atuais():
                 'close': tarefa.data_conclusao.strftime('%Y-%m-%d') if tarefa.data_conclusao else '',
                 'nome_empresa': tarefa.empresa,
                 'nome_squad': tarefa.squad_name,
-                'plataforma': '',  # Adicione o campo de plataforma se necessário
-                'subtarefas': tarefa.subtarefas  # Adicionando o campo subtarefas
+                'plataforma': '',
+                'subtarefas': tarefa.subtarefas
+            })
+        return jsonify(result)
+    except Exception as e:
+        return jsonify(error=str(e))
+
+@app.route('/get_tarefas_concluidas', methods=['POST'])
+def get_tarefas_concluidas():
+    try:
+        data = request.json
+        empresa = data['empresaName']
+        squad_name = data['squadName']
+
+        tarefas = TarefasFinalizadas.query.filter_by(empresa=empresa, squad_name=squad_name).all()
+        result = []
+        for tarefa in tarefas:
+            result.append({
+                'id': tarefa.id,
+                'nome_tarefa': tarefa.tarefa,
+                'desc': tarefa.descricao_empresa if hasattr(tarefa, 'descricao_empresa') else '',
+                'pos': tarefa.squad_name,
+                'start': tarefa.data_inclusao.strftime('%Y-%m-%d') if hasattr(tarefa, 'data_inclusao') else '',
+                'close': tarefa.data_conclusao.strftime('%Y-%m-%d') if tarefa.data_conclusao else '',
+                'nome_empresa': tarefa.empresa,
+                'nome_squad': tarefa.squad_name,
+                'plataforma': '',
+                'subtarefas': tarefa.subtarefas
             })
         return jsonify(result)
     except Exception as e:

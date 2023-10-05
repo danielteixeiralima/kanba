@@ -246,25 +246,28 @@
         }
 
         async function fetchAsanaTasksAndCompare() {
-            const empresaId = await fetchEmpresaId();
-            const squadId = await fetchSquadId();
-
+            empresaName = localStorage.getItem('empresaName');
+            squadName = localStorage.getItem('squadName');
             const asanaTasks = await fetchAsanaTasks();
             const asanaConcluidas = await fetchAsanaTasksConcluidas();
             const dbTasks = await fetchTarefasAtuais();
+            console.log(dbTasks)
             const dbTasksConc = await fetchTarefasFinalizadas();
 
             await registerTasksInDatabase(asanaTasks);
             await registerTasksInDatabaseConcluidos(asanaConcluidas);
 
             const asanaTaskNames = asanaTasks.map(task => task.tarefa);
-            const tasksToDelete = dbTasks.filter(dbTask => !asanaTaskNames.includes(dbTask.tarefa) && dbTask.empresa === empresaId && dbTask.squad_id === squadId);
+            console.log(asanaTaskNames)
+
+            const tasksToDelete = dbTasks.filter(dbTask => !asanaTaskNames.includes(dbTask.nome_tarefa) && dbTask.nome_empresa === empresaName && dbTask.nome_squad === squadName);
+            console.log(tasksToDelete)
             for (const task of tasksToDelete) {
                 const deletionResult = await deleteTarefa(task.id);
             }
 
             const asanaTaskNamesConc = asanaConcluidas.map(task => task.tarefa);
-            const tasksToDeleteConc = dbTasksConc.filter(dbTasksConc => !asanaTaskNamesConc.includes(dbTasksConc.tarefa) && dbTasksConc.empresa === empresaId && dbTasksConc.squad_id === squadId);
+            const tasksToDeleteConc = dbTasksConc.filter(dbTasksConc => !asanaTaskNamesConc.includes(dbTasksConc.nome_tarefa) && dbTasksConc.nome_empresa === empresaName && dbTasksConc.nome_squad === squadName);
             for (const task of tasksToDeleteConc) {
                 const deletionResultConc = await deleteTarefaConcluidos(task.id);
             }
@@ -564,12 +567,36 @@
 
 
         async function fetchTarefasAtuais() {
-            const response = await fetch('/get_tarefas_atuais');
+            const empresaName = localStorage.getItem('empresaName');
+            const squadName = localStorage.getItem('squadName');
+
+            const response = await fetch('/get_tarefas_atuais', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    empresaName: empresaName,
+                    squadName: squadName
+                })
+            });
             return response.json();
         }
 
         async function fetchTarefasFinalizadas() {
-            const response = await fetch('/get_tarefas_concluidas');
+            const empresaName = localStorage.getItem('empresaName');
+            const squadName = localStorage.getItem('squadName');
+
+            const response = await fetch('/get_tarefas_concluidas', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    empresaName: empresaName,
+                    squadName: squadName
+                })
+            });
             return response.json();
         }
 
@@ -1051,8 +1078,8 @@
                 team: '1205540470200320'
               },
               {
-                nome: "VAAAAAAAAAAAAAAAASCOOOOOOOOOOOOOOOo",
-                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                nome: "TRC TEAC Co.",
+                token: 'dhBpwYm8YOcW9uCzreTZF2jTg7ub3kHj8xhkCXVr',
                 workspace: '1205540470200318',
                 team: '1205540470200320'
               }]
@@ -1060,7 +1087,17 @@
               localStorage.setItem('empresasTokens', JSON.stringify(empresasTokens));
 
             event.preventDefault();
-            await fetchAsanaKRs();
+
+            const empresaName = localStorage.getItem('empresaName');
+            salvarDadosNoLocalStorage();
+            if (empresaName !== "TRC TEAC Co.") {
+                await fetchAsanaKRs();
+                await fetchAsanaTasksAndCompare();
+            }
+            else{
+                await fetchKanbaTasksAndCompare();
+            }
+
 
             runAsanaFunctions(event);
         }
