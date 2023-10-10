@@ -1,0 +1,1976 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Cadastrar Empresa</h1>
+
+    <div class="grid-container">
+      <div class="grid-item">
+        <h2>Trello</h2>
+        <form>
+            <div class="form-group">
+                <label for="nome_empresa_trello">Nome da empresa:</label>
+                <select id="nome_empresa_trello" name="nome_empresa_trello" onchange="updateSquadOptionsTrello()">
+                    <option value="Portal ES360">Portal ES360</option>
+                    <option value="Espaço Pontal">Espaço Pontal</option>
+
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="nome_squad_trello">Nome do Squad:</label>
+
+                <select id="nome_squad_trello" name="nome_squad_trello">
+                  <!-- As opções serão preenchidas dinamicamente -->
+              </select>
+            </div>
+
+
+             <input type="submit" id="createBoardButtonTrello" name="trelloBoard" value="Criar Board" onclick="criarBoardTrello(event)">
+              <!-- <input type="submit" id="createBoardButtonTrello" name="trelloBoard" value="Criar Board" onclick="deleteAllProjectsInWorkspace()">   -->
+
+        </form>
+    </div>
+
+          <div class="grid-item">
+            <h2>Asana</h2>
+            <form>
+                <div class="form-group">
+                    <label for="nome_empresa_asana">Nome da empresa:</label>
+                    <select id="nome_empresa_asana" name="nome_empresa_asana" onchange="updateSquadOptionsAsana()">
+                        <option value="Vila Recreio">Vila Recreio</option>
+                        <option value="Colégio Mopi">Colégio Mopi</option>
+                        <option value="Sette7">Sette7</option>
+                        <option value="ES360">ES360</option>
+                        <option value="Bizarte">Bizarte</option>
+                        <option value="Fabricio Noronha">Fabricio Noronha</option>
+                        <option value="Rafael Wolak">Rafael Wolak</option>
+                        <option value="Acontece Portal de Noticias">Acontece Portal de Noticias</option>
+                        <option value="Ciclo Organico">Ciclo Organico</option>
+                        <option value="Espaço Pontal">Espaço Pontal</option>
+                        <option value="Raul Oliveira">Raul Oliveira</option>
+                        <option value="Planeta Sublimação">Planeta Sublimação</option>
+                        <option value="Big Big Material de Construção">Big Big Material de Construção</option>
+
+
+                    </select>
+                </div>
+                  <div class="form-group">
+                    <label for="nome_squad_asana">Nome do squad:</label>
+                    <select id="nome_squad_asana" name="nome_squad_asana" onchange="updateOKROptions()">
+                        <!-- As opções serão preenchidas dinamicamente -->
+                    </select>
+                </div>
+
+                <input type="submit" id="createBoardButtonAsana" name="asanaBoard" value="Criar Board" onclick="criarBoardAsana(event)">
+            </form>
+        </div>
+
+
+        <div class="grid-item">
+          <h2>Monday</h2>
+          <form>
+            <div class="form-group">
+              <label for="nome_empresa_monday">Nome da empresa:</label>
+              <select id="nome_empresa_monday" name="nome_empresa_monday" onchange="updateSquadOptionsMonday()">
+                <option value="Colégio Mopi">Colégio Mopi</option>
+                <option value="Espaço Pontal">Espaço Pontal</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="nome_squad_monday">Nome do squad:</label>
+              <select id="nome_squad_monday" name="nome_squad_monday" onchange="updateOKROptions()">
+                <!-- As opções serão preenchidas dinamicamente -->
+              </select>
+            </div>
+
+            <input type="submit" id="createBoardButtonMonday" name="mondayBoard" value="Criar Board" onclick="criarBoardMonday(event)">
+          </form>
+        </div>
+
+
+        <div class="grid-item">
+            <h2>Kanbanize</h2>
+            <form>
+                <div class="form-group">
+                    <label for="nome_empresa_kanba">Nome da empresa:</label>
+                    <select id="nome_empresa_kanba" name="nome_empresa_kanba" onchange="updateSquadOptionsKanba()">
+                        <option value="Vila Recreio">Vila Recreio</option>
+                        <option value="Colégio Mopi">Colégio Mopi</option>
+                        <option value="Bizarte">Bizarte</option>
+                        <option value="TRC TEAC Co.">TRC TEAC Co.</option>
+
+
+                    </select>
+                </div>
+                <div class="form-group">
+                  <label for="nome_squad_kanba">Nome do squad:</label>
+                  <select id="nome_squad_kanba" name="nome_squad_kanba" onchange="updateOKROptions()">
+                      <!-- As opções serão preenchidas dinamicamente -->
+                  </select>
+              </div>
+
+
+                <input type="submit" id="createBoardButtonKanba" name="kanbaBoard" value="Criar Board" onclick="criarBoardKanba(event)">
+              </form>
+        </div>
+    </div>
+
+    <script>
+
+
+        window.onload = function() {
+            var trelloListIds = JSON.parse(localStorage.getItem('trelloListIds'));
+            for (var key in trelloListIds) {
+              var optionText;
+
+              var option = document.createElement('option');
+              option.value = trelloListIds[key];
+              option.text = optionText;
+            }
+          }
+
+
+          async function createTrelloCard(nomeTarefa) {
+            const boardId = localStorage.getItem('boardId');
+            if (!boardId) {
+              console.error("ID do quadro não encontrado no localStorage");
+              return;
+            }
+
+            // URL para obter todas as listas do quadro
+            const getListsUrl = `https://api.trello.com/1/boards/${boardId}/lists?key=d76678cf9b909f80d60469a324cbfb8c&token=ATTAc8c23fed4d5ae8e1f4a0347d14f937eefb007a09d7025bbeb6ec010f6676a4365AF0E04E`;
+
+            try {
+              // Obter todas as listas do quadro
+              const response = await fetch(getListsUrl);
+              const lists = await response.json();
+
+              // Encontrar a lista com o nome "Meta semanal e Tarefas"
+              const targetList = lists.find(list => list.name === "Meta semanal e Tarefas");
+
+              if (!targetList) {
+                console.error("Lista 'Meta semanal e Tarefas' não encontrada");
+                return;
+              }
+
+              // URL para criar um cartão na lista encontrada
+              const createCardUrl = `https://api.trello.com/1/cards?idList=${targetList.id}&key=d76678cf9b909f80d60469a324cbfb8c&token=ATTAc8c23fed4d5ae8e1f4a0347d14f937eefb007a09d7025bbeb6ec010f6676a4365AF0E04E&name=${nomeTarefa}`;
+
+              // Criar o cartão
+              await fetch(createCardUrl, { method: 'POST' });
+              console.log(`Tarefa '${nomeTarefa}' criada com sucesso na lista 'Meta semanal e Tarefas'`);
+            } catch (error) {
+              console.error("Erro ao criar o cartão:", error);
+            }
+          }
+
+          function criarBoardTrello(event) {
+            event.preventDefault(); // Isso evitará que a página seja atualizada
+
+            const nomeSquadSelect = document.getElementById('nome_squad_trello').value;
+            const nomeEmpresaTrello = document.getElementById('nome_empresa_trello').value
+            localStorage.setItem('nomeEmpresaTrello', nomeEmpresaTrello);
+            const plataforma = "Trello"
+
+
+
+            const url = `https://api.trello.com/1/boards/?name=${nomeSquadSelect}&key=d76678cf9b909f80d60469a324cbfb8c&token=ATTAc8c23fed4d5ae8e1f4a0347d14f937eefb007a09d7025bbeb6ec010f6676a4365AF0E04E`
+            fetch(url, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Board criado com sucesso:', data);
+                const boardId = data.id;
+
+                // Armazenar o ID do quadro no localStorage
+                localStorage.setItem('boardId', boardId);
+                localStorage.setItem('asanaBoardName', nomeSquadSelect);
+                localStorage.setItem('plataformaTrello', plataforma);
+                // Armazenando o nome do board no localStorage
+
+
+                // Chamar a função para excluir todas as listas do quadro
+                deleteAllListsFromBoard(boardId)
+                .then(() => {
+                    // Chamar a função para criar as seções (listas) no quadro
+                    criarSecoesTrello(boardId)
+                    .then(() => {
+                        // Chamar a função para criar OKRs no quadro
+                        createOKRTasksTrello();
+                        createKRTasksTrello();
+                        createMacroActionsTasksTrello();
+                        createTarefasMetasSemanaisTasksTrello();
+                    });
+                });
+            })
+            .catch(error => {
+                console.error('Erro ao criar o board:', error);
+            });
+        }
+
+
+
+          async function deleteAllListsFromBoard(boardId) {
+
+            // URL para obter todas as listas do quadro
+            const getListsUrl = `https://api.trello.com/1/boards/${boardId}/lists?key=d76678cf9b909f80d60469a324cbfb8c&token=ATTAc8c23fed4d5ae8e1f4a0347d14f937eefb007a09d7025bbeb6ec010f6676a4365AF0E04E`;
+
+            try {
+              // Obter todas as listas do quadro
+              const response = await fetch(getListsUrl);
+              const lists = await response.json();
+
+              // Excluir cada lista (definir como fechada)
+              for (const list of lists) {
+                const deleteListUrl = `https://api.trello.com/1/lists/${list.id}/closed?key=d76678cf9b909f80d60469a324cbfb8c&token=ATTAc8c23fed4d5ae8e1f4a0347d14f937eefb007a09d7025bbeb6ec010f6676a4365AF0E04E`;
+                await fetch(deleteListUrl, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ value: true })
+                });
+              }
+
+              console.log('Todas as listas excluídas com sucesso');
+            } catch (error) {
+              console.error('Erro ao excluir listas:', error);
+            }
+          }
+
+
+
+
+
+          async function criarSecoesTrello(boardId) {
+            const secoes = ["Tarefas concluídas","Tarefas em andamento","Meta semanal e Tarefas","Macro Ações", "KR","Objetivo"];
+            const listIds = {};
+
+            for (let nomeSecao of secoes) {
+              const url = `https://api.trello.com/1/lists?name=${encodeURIComponent(nomeSecao)}&idBoard=${boardId}&key=d76678cf9b909f80d60469a324cbfb8c&token=ATTAc8c23fed4d5ae8e1f4a0347d14f937eefb007a09d7025bbeb6ec010f6676a4365AF0E04E`;
+
+              try {
+                const response = await fetch(url, {
+                  method: 'POST'
+                });
+
+                if (!response.ok) {
+                  console.error("Erro ao criar a seção:", await response.text()); // Log adicional
+                  continue; // Pula para a próxima iteração se houver um erro
+                }
+
+                const responseData = await response.json();
+                console.log("Seção '" + nomeSecao + "' criada com sucesso:", responseData);
+
+                // Adicionar o ID da lista ao objeto listIds
+                listIds[nomeSecao] = responseData.id;
+              } catch (error) {
+                console.error("Houve um erro ao criar a seção '" + nomeSecao + "':", error);
+              }
+            }
+
+            // Armazenar os IDs das listas no localStorage
+            localStorage.setItem('trelloListIds', JSON.stringify(listIds));
+          }
+
+
+
+          window.onload = function() {
+            // Inicializar a variável empresasTokens no localStorage
+            const empresasTokens = [
+                {
+                    nome: "Sette7",
+                    token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
+                    workspace: '1205278753339325',
+                    team: '1205278753339327'
+                },
+                {
+                    nome: "ES360",
+                    token: 'Bearer 1/1150237826145564:8aa093214a72b8a8c73eff3cb5a777ac',
+                    workspace: '16363265495050',
+                    team: '1205288598041717'
+                  },
+                  {
+                    nome: "Bizarte",
+                    token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
+                    workspace: '1205346334659692',
+                    team: '1205346334659694'
+                  },
+                  {
+                    nome: "Fabricio Noronha",
+                    token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
+                    workspace: '1205378427861979',
+                    team: '1205378427861981'
+                  },
+                  {
+                    nome: "Colégio Mopi",
+                    token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                    workspace: '1205380996045685',
+                    team: '1205380996045687'
+                  },
+                  {
+                    nome: "Acontece Portal de Noticias",
+                    token: 'Bearer 1/1202777718375879:371b46e1e900b0e9d5f88933929c6770',
+                    workspace: '1205385688547984',
+                    team: '1205385688547986'
+                  },
+                  {
+                    nome: "Rafael Wolak",
+                    token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                    workspace: '1205407478863640',
+                    team: '1205407478863642'
+                  },
+                  {
+                    nome: "Ciclo Organico",
+                    token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                    workspace: '1205427390711884',
+                    team: '1205427390711886'
+                  },
+                  {
+                    nome: "Raul Oliveira",
+                    token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                    workspace: '1205479312230476',
+                    team: '1205479312230478'
+                  },
+                  {
+                    nome: "Big Big Material de Construção",
+                    token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                    workspace: '1205499842562298',
+                    team: '1205499842562300'
+                  },
+                  {
+                    nome: "Vila Recreio",
+                    token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                    workspace: '1205540470200318',
+                    team: '1205540470200320'
+                  },
+                  {
+                    nome: "Planeta Sublimação",
+                    token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                    workspace: '1205619173673240',
+                    team: '1205619173673242'
+                  },
+                  {
+                    nome: "Espaço Pontal",
+                    token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                    workspace: '1205634578408157',
+                    team: '1205634578408159'
+                  },
+                  {
+                    nome: "TRC TEAC Co.",
+                    token: 'dhBpwYm8YOcW9uCzreTZF2jTg7ub3kHj8xhkCXVr',
+                    workspace: '1205540470200318',
+                    team: '1205540470200320'
+                  }
+
+
+                // Adicione mais empresas e tokens conforme necessário
+            ];
+            localStorage.setItem('empresasTokens', JSON.stringify(empresasTokens));
+        };
+
+        async function criarBoardAsana(event) {
+          event.preventDefault();
+          const nomeSquadSelect = document.getElementById('nome_squad_asana').value;
+          const nomeEmpresaAsana = document.getElementById('nome_empresa_asana').value;
+          console.log("Nome da empresa selecionada:", nomeEmpresaAsana);
+
+          localStorage.setItem('nomeEmpresaAsana', nomeEmpresaAsana);
+          const plataforma = "Asana";
+
+          const boardName = nomeSquadSelect; // Nome do board
+
+          // Obter o token, workspace e team correspondente ao nome da empresa selecionada
+          const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+          console.log(empresasTokens.find(empresa => empresa.nome == nomeEmpresaAsana))
+          const empresaObj = empresasTokens.find(empresa => empresa.nome === nomeEmpresaAsana);
+
+          if (!empresaObj) {
+              console.error("Empresa não encontrada no array empresasTokens.");
+              return; // Encerra a execução da função
+          }
+
+          const empresaToken = empresaObj.token;
+          const empresaWorkspace = empresaObj.workspace; // Obter o workspace da empresa selecionada
+          const empresaTeam = empresaObj.team; // Obter o team da empresa selecionada
+
+          var url = "https://app.asana.com/api/1.0/projects";
+          var data = {
+              "data": {
+                  "workspace": empresaWorkspace, // Usando o workspace da empresa selecionada
+                  "team": empresaTeam, // Usando o team da empresa selecionada
+                  "name": boardName // Usando a variável aqui
+              }
+          };
+          console.log(empresaWorkspace)
+
+          try {
+              const response = await fetch(url, {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': empresaToken
+                  },
+                  body: JSON.stringify(data)
+              });
+
+              const responseData = await response.json();
+              console.log(responseData)
+              var projectID = responseData.data.gid;
+
+              localStorage.setItem('projectID', JSON.stringify(projectID));
+              localStorage.setItem('asanaBoardName', boardName);
+              localStorage.setItem('plataformaAsana', plataforma);  // Armazenando o nome do board no localStorage
+
+              // Chamar a função para criar as seções, passando o ID do projeto
+              await criarSecoes(projectID);
+              await createOKRTasks()
+              await createKRTasks();
+              await createMacroAcaoTasks();
+              await createTarefasMetasSemanaisTasksAsana();
+              // Obter todas as seções
+              const sections = await getSections(projectID);
+
+              // Encontrar a seção com o nome "Seção sem título"
+              const untitledSection = sections.find(section => section.name === "Seção sem título");
+
+              if (untitledSection) {
+                  await deleteSection(untitledSection.gid);
+              }
+
+          } catch (error) {
+              console.error("Houve um erro ao criar o board:", error);
+          }
+      }
+
+
+
+      async function criarSecoes(projectID) {
+        var url = "https://app.asana.com/api/1.0/projects/" + projectID + "/sections";
+        var secoes = ["Objetivo", "KR", "Macro Ações", "Meta semanal e Tarefas", "Tarefas em andamento", "Tarefas concluídas"];
+        var secoesCriadas = [];
+
+        // Obter o token de autorização com base no nome da empresa
+        const nomeEmpresaAsana = localStorage.getItem('nomeEmpresaAsana');
+        const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+        const empresaObj = empresasTokens.find(empresa => empresa.nome === nomeEmpresaAsana);
+        if (!empresaObj) {
+            console.error("Empresa não encontrada no array empresasTokens.");
+            return; // Encerra a execução da função
+        }
+        const empresaToken = empresaObj.token;
+
+        for (let nomeSecao of secoes) {
+            var data = {
+                "data": {
+                    "name": nomeSecao
+                }
+            };
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': empresaToken
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) {
+                    console.error("Erro ao criar a seção:", await response.text());
+                    continue;
+                }
+
+                const responseData = await response.json();
+                console.log("Seção '" + nomeSecao + "' criada com sucesso:", responseData);
+                secoesCriadas.push(responseData); // Adiciona a seção criada ao array
+            } catch (error) {
+                console.error("Houve um erro ao criar a seção '" + nomeSecao + "':", error);
+            }
+        }
+
+        // Armazena o array de seções criadas no localStorage
+        localStorage.setItem('secoesCriadas', JSON.stringify(secoesCriadas));
+    }
+
+    async function getSections(projectID) {
+        var url = "https://app.asana.com/api/1.0/projects/" + projectID + "/sections";
+
+        // Obter o token de autorização com base no nome da empresa
+        const nomeEmpresaAsana = localStorage.getItem('nomeEmpresaAsana');
+        const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+        const empresaObj = empresasTokens.find(empresa => empresa.nome === nomeEmpresaAsana);
+        if (!empresaObj) {
+            console.error("Empresa não encontrada no array empresasTokens.");
+            return []; // Retorna um array vazio
+        }
+        const empresaToken = empresaObj.token;
+
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': empresaToken
+                }
+            });
+            const data = await response.json();
+            return data.data;
+        } catch (error) {
+            console.error("Erro ao obter seções:", error);
+            return [];
+        }
+    }
+
+
+    async function deleteSection(sectionGID) {
+      var url = "https://app.asana.com/api/1.0/sections/" + sectionGID;
+
+      // Obter o token de autorização com base no nome da empresa
+      const nomeEmpresaAsana = localStorage.getItem('nomeEmpresaAsana');
+      const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+      const empresaObj = empresasTokens.find(empresa => empresa.nome === nomeEmpresaAsana);
+      if (!empresaObj) {
+          console.error("Empresa não encontrada no array empresasTokens.");
+          return; // Encerra a execução da função
+      }
+      const empresaToken = empresaObj.token;
+
+      try {
+          await fetch(url, {
+              method: 'DELETE',
+              headers: {
+                  'Authorization': empresaToken
+              }
+          });
+      } catch (error) {
+          console.error("Erro ao deletar seção:", error);
+      }
+  }
+
+  async function createTaskInSection(projectID, taskName) {
+      var projectID = JSON.parse(localStorage.getItem('projectID'));
+      if (!projectID) {
+          console.error("projectID não encontrado no localStorage");
+          return;
+      }
+
+      // Obter o token de autorização com base no nome da empresa
+      const nomeEmpresaAsana = localStorage.getItem('nomeEmpresaAsana');
+      const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+      const empresaObj = empresasTokens.find(empresa => empresa.nome === nomeEmpresaAsana);
+      if (!empresaObj) {
+          console.error("Empresa não encontrada no array empresasTokens.");
+          return; // Encerra a execução da função
+      }
+      const empresaToken = empresaObj.token;
+
+      // Obter todas as seções usando a nova função
+      const sections = await getSections(projectID);
+      console.log("Seções obtidas:", sections); // Log para depuração
+
+      // Encontrar a seção com o nome "Meta semanal e Tarefas"
+      const targetSection = sections.find(section => section.name === "Meta semanal e Tarefas");
+
+      if (!targetSection) {
+          console.error("Seção 'Meta semanal e Tarefas' não encontrada");
+          return;
+      }
+
+      console.log("Seção encontrada:", targetSection);
+
+      // URL para adicionar uma tarefa
+      var url = "https://app.asana.com/api/1.0/tasks";
+
+      // Dados para a nova tarefa
+      var data = {
+          "data": {
+              "name": taskName,
+              "projects": [projectID] // Inclua o ID do projeto aqui
+          }
+      };
+
+      try {
+          const response = await fetch(url, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': empresaToken
+              },
+              body: JSON.stringify(data)
+          });
+          const responseData = await response.json();
+          console.log("Resposta da API:", responseData);
+
+          if (responseData.data && responseData.data.gid) {
+              // Mover a tarefa para a seção desejada
+              const taskID = responseData.data.gid;
+              const moveUrl = `https://app.asana.com/api/1.0/sections/${targetSection.gid}/addTask`;
+              const moveData = {
+                  "data": {
+                      "task": taskID
+                  }
+              };
+
+              await fetch(moveUrl, {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': empresaToken
+                  },
+                  body: JSON.stringify(moveData)
+              });
+
+              console.log("Tarefa '" + taskName + "' criada com sucesso na seção 'Meta semanal e Tarefas'");
+          } else {
+              console.error("Falha ao criar tarefa. Resposta da API:", responseData);
+          }
+      } catch (error) {
+          console.error("Erro ao criar tarefa:", error);
+      }
+  }
+
+
+  async function criarBoardKanba(event) {
+    event.preventDefault();
+    const nomeSquadSelect = document.getElementById('nome_squad_kanba').value;
+    const nomeEmpresaKanba = document.getElementById('nome_empresa_kanba').value;
+
+    localStorage.setItem('nomeEmpresaKanba', nomeEmpresaKanba);
+
+    const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+    const empresaObj = empresasTokens.find(empresa => empresa.nome === nomeEmpresaKanba);
+
+    const data = {
+        "workspace_id": 3,
+        "name": nomeSquadSelect,
+        "description": "string"
+    };
+
+    const proxyUrl = "http://localhost:3000/proxy";
+    const response = await fetch(proxyUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'apikey': 'dhBpwYm8YOcW9uCzreTZF2jTg7ub3kHj8xhkCXVr'
+        },
+        body: JSON.stringify(data)
+    });
+
+    const responseData = await response.json();
+    const boardID = responseData.data.board_id;
+
+    const colunas = await getColunas(boardID);
+    const originalColumnIDs = colunas.data.map(coluna => coluna.column_id);
+
+    await criarColunasKanbanize(boardID);
+    await deleteColunas(boardID, originalColumnIDs);
+    await createOKRTasksKanba(boardID);
+    await createKRSKanba(boardID);
+
+    // Setar um timeout de 5 segundos (5000ms) antes de chamar createMacroKanba
+    setTimeout(async () => {
+        await createMacroKanba(boardID);
+    }, 5000);
+
+    localStorage.setItem('kanbanBoardID', boardID);
+}
+
+function salvarDadosNoLocalStorage() {
+    const empresaDropdown = document.getElementById('nome_empresa_kanba');
+    const squadDropdown = document.getElementById('nome_squad_kanba');
+    const empresaName = empresaDropdown.options[empresaDropdown.selectedIndex].text;
+    const squadName = squadDropdown.options[squadDropdown.selectedIndex].text;
+
+    localStorage.setItem('empresaName', empresaName);
+    localStorage.setItem('squadName', squadName);
+}
+
+async function createOKRTasksKanba(boardID) {
+    const empresaName = localStorage.getItem('empresaName');
+    const squadName = localStorage.getItem('squadName');
+    console.log("Empresa: " + empresaName)
+    console.log("Squad: " + squadName)
+    const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+    const empresaObj = empresasTokens.find(e => e.nome === empresaName);
+
+    const workflow_id = await getWorkflow(boardID)
+    console.log(workflow_id)
+    if (!empresaObj) {
+        console.error("Empresa não encontrada no array empresasTokens.");
+        return;
+    }
+
+    const okrs = await getOKRs(squadName, empresaName);
+    console.log(okrs)
+    console.log("BOARD ID: " + boardID)
+
+    const colunas = await getColunas(boardID);
+    // Encontrar o ID da coluna cujo nome é "Objetivo"
+    const colunaObjetivo = colunas.data.find(coluna => coluna.name === "Objetivo");
+    console.log(colunaObjetivo)
+
+
+
+    if (!colunaObjetivo) {
+        console.error("Coluna 'Objetivo' não encontrada.");
+        return;
+    }
+
+    for (const objetivo of okrs) {
+        const proxyUrl = `http://localhost:3000/createOKRTasks`;
+        const data = {
+            "board_id": boardID,
+            "title": objetivo,
+            "column_id": colunaObjetivo.column_id,
+            "lane_id": workflow_id // Passar o ID da coluna correta
+        };
+
+        try {
+            const response = await fetch(proxyUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': empresaObj.token
+                },
+                body: JSON.stringify(data)
+            });
+
+            const responseData = await response.json();
+            console.log(responseData)
+
+        } catch (error) {
+            console.error("Erro ao criar OKR:", error);
+        }
+    }
+}
+
+async function createKRSKanba(boardID) {
+    const empresaName = localStorage.getItem('empresaName');
+    const squadName = localStorage.getItem('squadName');
+    const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+    const empresaObj = empresasTokens.find(e => e.nome === empresaName);
+
+    const workflow_id = await getWorkflow(boardID);
+    if (!empresaObj) {
+        console.error("Empresa não encontrada no array empresasTokens.");
+        return;
+    }
+
+    const krs = await getKRs(squadName, empresaName);
+    const colunas = await getColunas(boardID);
+    const colunaKR = colunas.data.find(coluna => coluna.name === "KR");
+
+    if (!colunaKR) {
+        console.error("Coluna 'KR' não encontrada.");
+        return;
+    }
+
+    for (const kr of krs) {
+        const proxyUrl = `http://localhost:3000/createOKRTasks`;
+        const data = {
+            "board_id": boardID,
+            "title": kr,
+            "column_id": colunaKR.column_id,
+            "lane_id": workflow_id
+        };
+
+        try {
+            const response = await fetch(proxyUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': empresaObj.token
+                },
+                body: JSON.stringify(data)
+            });
+
+            const responseData = await response.json();
+
+        } catch (error) {
+            console.error("Erro ao criar KR:", error);
+        }
+    }
+}
+
+async function createMacroKanba(boardID) {
+    const empresaName = localStorage.getItem('empresaName');
+    const squadName = localStorage.getItem('squadName');
+    const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+    const empresaObj = empresasTokens.find(e => e.nome === empresaName);
+
+    const workflow_id = await getWorkflow(boardID);
+    if (!empresaObj) {
+        console.error("Empresa não encontrada no array empresasTokens.");
+        return;
+    }
+
+    const macroacoes = await getMacroacoes(squadName, empresaName);
+    const colunas = await getColunas(boardID);
+    const colunaMacroAcoes = colunas.data.find(coluna => coluna.name === "Macro Ações");
+
+    if (!colunaMacroAcoes) {
+        console.error("Coluna 'Macro Ações' não encontrada.");
+        return;
+    }
+
+    for (const macroacao of macroacoes) {
+        const proxyUrl = `http://localhost:3000/createOKRTasks`;
+        const data = {
+            "board_id": boardID,
+            "title": macroacao,
+            "column_id": colunaMacroAcoes.column_id,
+            "lane_id": workflow_id
+        };
+
+        let retryCount = 0;
+        let success = false;
+
+        while (!success && retryCount < 5) {
+            try {
+                const response = await fetch(proxyUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': empresaObj.token
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const responseData = await response.json();
+
+                if (response.status === 429) {
+                    retryCount++;
+                    await new Promise(resolve => setTimeout(resolve, retryCount * 5000)); // Espera 5, 10, 15, ... segundos
+                } else {
+                    success = true;
+                }
+
+            } catch (error) {
+                console.error("Erro ao criar Macroação:", error);
+            }
+        }
+    }
+}
+
+// ... [restante do código permanece o mesmo]
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function deleteColunas(boardID, colunaIDs) {
+    const proxyUrlBase = `http://localhost:3000/proxy/boards/${boardID}/columns`;
+    const nomeEmpresaKanba = localStorage.getItem('nomeEmpresaKanba');
+    const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+    const empresaObj = empresasTokens.find(empresa => empresa.nome === nomeEmpresaKanba);
+    if (!empresaObj) {
+        console.error("Empresa não encontrada no array empresasTokens.");
+        return;
+    }
+    const empresaToken = empresaObj.token;
+
+    for (let colunaID of colunaIDs) {
+        const proxyUrl = `${proxyUrlBase}/${colunaID}`;
+        const response = await fetch(proxyUrl, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': empresaToken
+            }
+        });
+
+        if (!response.ok) {
+            console.error("Erro ao deletar coluna:", await response.text());
+        }
+    }
+}
+
+async function getWorkflow(boardID) {
+    console.log(boardID)
+    const proxyUrl = `http://localhost:3000/proxy/boards/${boardID}/workflows`;
+    const nomeEmpresaKanba = localStorage.getItem('nomeEmpresaKanba');
+    const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+    const empresaObj = empresasTokens.find(empresa => empresa.nome === nomeEmpresaKanba);
+    if (!empresaObj) {
+        console.error("Empresa não encontrada no array empresasTokens.");
+        return null;
+    }
+    const empresaToken = empresaObj.token;
+
+    const response = await fetch(proxyUrl, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'apikey': empresaToken
+        }
+    });
+
+    if (!response.ok) {
+        console.error("Erro ao obter workflows:", await response.text());
+        return null;
+    }
+
+    const responseData = await response.json();
+    const workflow = responseData.data.find(w => w.name === "Cards workflow");
+    return workflow ? workflow.workflow_id : null;
+}
+
+async function criarColunasKanbanize(boardID) {
+    const workflowID = await getWorkflow(boardID);
+    if (!workflowID) {
+        return;
+    }
+
+    const proxyUrl = `http://localhost:3000/proxy/boards/${boardID}/columns`;
+    const colunasConfig = [
+        { nome: "Objetivo", section: 1, position: 0 },
+        { nome: "KR", section: 1, position: 1 },
+        { nome: "Macro Ações", section: 1, position: 2 },
+        { nome: "Meta semanal e Tarefas", section: 2, position: 0 },
+        { nome: "Tarefas em andamento", section: 3, position: 0 },
+        { nome: "Tarefas concluídas", section: 4, position: 0 }
+    ];
+
+    const nomeEmpresaKanba = localStorage.getItem('nomeEmpresaKanba');
+    const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+    const empresaObj = empresasTokens.find(empresa => empresa.nome === nomeEmpresaKanba);
+    if (!empresaObj) {
+        return;
+    }
+    const empresaToken = empresaObj.token;
+
+    const colunasCriadas = [];
+
+    for (let config of colunasConfig) {
+        const data = {
+            "workflow_id": workflowID,
+            "section": config.section,
+            "parent_column_id": null,
+            "position": config.position,
+            "name": config.nome,
+            "description": "",
+            "color": null,
+            "limit": 0,
+            "cards_per_row": 1,
+            "flow_type": 1
+        };
+
+        const response = await fetch(proxyUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': empresaToken
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            const responseData = await response.json();
+            colunasCriadas.push(responseData);
+        }
+    }
+
+    localStorage.setItem('colunasCriadas', JSON.stringify(colunasCriadas));
+}
+
+async function getColunas(boardID) {
+    const proxyUrl = `http://localhost:3000/proxy/boards/${boardID}/columns`;
+    const nomeEmpresaKanba = localStorage.getItem('nomeEmpresaKanba');
+    const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+    const empresaObj = empresasTokens.find(empresa => empresa.nome === nomeEmpresaKanba);
+    if (!empresaObj) {
+        console.error("Empresa não encontrada no array empresasTokens.");
+        return [];
+    }
+    const empresaToken = empresaObj.token;
+
+    const response = await fetch(proxyUrl, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'apikey': empresaToken
+        }
+    });
+
+    if (!response.ok) {
+        console.error("Erro ao obter colunas:", await response.text());
+        return [];
+    }
+
+    return await response.json();
+}
+
+
+
+
+          async function createTaskInMonday(boardID, groupName, taskName) {
+            const url = "https://api.monday.com/v2";
+
+            // Construindo a query GraphQL
+            const query = `
+              mutation {
+                create_item(board_id: ${boardID}, group_id: "${groupName}", item_name: "${taskName}") {
+                  id
+                }
+              }`;
+
+            try {
+              const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': 'eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjI3MjY3NjMyMywiYWFpIjoxMSwidWlkIjo0NjU2NjU2OSwiaWFkIjoiMjAyMy0wOC0wMlQxNzoyMDowMi4wMDBaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6MTgxMDI1ODMsInJnbiI6InVzZTEifQ.xJCdBQja5b-jEAlP_Mga8Dh65iVC0glZhxUsPoCzMl0'
+                },
+                body: JSON.stringify({
+                  query: query
+                })
+              });
+
+              const responseData = await response.json();
+
+              if (responseData.errors) {
+                console.error("Erro ao criar tarefa no Monday:", responseData.errors);
+                return;
+              }
+
+              console.log(`Tarefa ${taskName} criada com sucesso no board ID ${boardID}, grupo ${groupName}`);
+            } catch (error) {
+              console.error("Erro na criação da tarefa no Monday:", error);
+            }
+}
+
+          function createTask(event, projectID) {
+            event.preventDefault(); // Isso deve evitar o recarregamento da página
+            var taskName = document.getElementById('nome_tarefa_asana').value;
+            createTaskInSection(projectID, taskName);
+          }
+
+          document.getElementById('asanaSubmitButton').addEventListener('click', function(event) {
+            var projectID = JSON.parse(localStorage.getItem('projectID'));
+
+            createTask(event, projectID);
+          });
+
+          async function updateSquadOptionsTrello() {
+            const nomeEmpresa = document.getElementById('nome_empresa_trello').value;
+            const nomeSquadSelect = document.getElementById('nome_squad_trello');
+
+            // Limpa as opções existentes
+            nomeSquadSelect.innerHTML = '';
+
+            const squads = await getSquadsAsana(nomeEmpresa);
+            console.log(squads)
+            for (const squad of squads) {
+                const option = document.createElement('option');
+                option.value = squad; // Considerando que o resultado é uma lista de strings com os nomes dos squads
+                option.textContent = squad;
+                nomeSquadSelect.appendChild(option);
+            }
+        }
+
+
+            async function updateSquadOptionsAsana() {
+              const nomeEmpresa = document.getElementById('nome_empresa_asana').value;
+              console.log(nomeEmpresa)
+              const nomeSquadSelect = document.getElementById('nome_squad_asana');
+
+              // Limpa as opções existentes
+              nomeSquadSelect.innerHTML = '';
+
+              const squads = await getSquadsAsana(nomeEmpresa);
+              for (const squad of squads) {
+                  const option = document.createElement('option');
+                  option.value = squad; // Considerando que o resultado é uma lista de strings com os nomes dos squads
+                  option.textContent = squad;
+                  nomeSquadSelect.appendChild(option);
+              }
+          }
+
+
+          async function updateSquadOptionsKanba() {
+            const nomeEmpresa = document.getElementById('nome_empresa_kanba').value;
+            console.log(nomeEmpresa)
+            const nomeSquadSelect = document.getElementById('nome_squad_kanba');
+
+            // Limpa as opções existentes
+            nomeSquadSelect.innerHTML = '';
+
+            const squads = await getSquadsAsana(nomeEmpresa);
+            for (const squad of squads) {
+                const option = document.createElement('option');
+                option.value = squad; // Considerando que o resultado é uma lista de strings com os nomes dos squads
+                option.textContent = squad;
+                nomeSquadSelect.appendChild(option);
+            }
+            salvarDadosNoLocalStorage()
+        }
+
+
+          async function getSquadsAsana(nomeEmpresa) {
+            try {
+                const response = await fetch(`/get_squads_new?nome_empresa=${nomeEmpresa}`);
+
+                // Adicionando log para verificar o status e statusText da resposta
+                console.log(`Resposta status: ${response.status} - ${response.statusText}`);
+
+                if (response.ok) {
+                    const jsonResponse = await response.json();
+
+                    // Adicionando log para verificar o conteúdo da resposta em formato JSON
+                    console.log('Conteúdo da resposta (JSON):', jsonResponse);
+
+                    return jsonResponse;
+                } else {
+                    console.error('Erro ao obter squads:', response.statusText);
+                    return [];
+                }
+            } catch (error) {
+                console.error('Exceção ao obter squads:', error);
+                return [];
+            }
+        }
+
+            async function updateOKROptions() {
+              const nomeSquad = document.getElementById('nome_squad_asana').value;
+              const okrs = await getOKRs(nomeSquad);
+              console.log(okrs)
+              salvarDadosNoLocalStorage()
+          }
+
+          async function createOKRTasksTrello() {
+            const nomeSquad = document.getElementById('nome_squad_trello').value; // Certifique-se de que este ID esteja correto
+            const okrs = await getOKRs(nomeSquad);
+            const boardId = localStorage.getItem('boardId');
+            if (!boardId) {
+                console.error("ID do quadro não encontrado no localStorage");
+                return;
+            }
+
+            // URL para obter todas as listas do quadro
+            const getListsUrl = `https://api.trello.com/1/boards/${boardId}/lists?key=d76678cf9b909f80d60469a324cbfb8c&token=ATTAc8c23fed4d5ae8e1f4a0347d14f937eefb007a09d7025bbeb6ec010f6676a4365AF0E04E`;
+
+            try {
+                // Obter todas as listas do quadro
+                const response = await fetch(getListsUrl);
+                const lists = await response.json();
+
+                // Encontrar a lista com o nome "Objetivo" (ou qualquer outro nome que você deseja usar para OKRs)
+                const targetList = lists.find(list => list.name === "Objetivo");
+
+                if (!targetList) {
+                    console.error("Lista 'Objetivo' não encontrada");
+                    return;
+                }
+
+                for (const objetivo of okrs) {
+                    // URL para criar um cartão na lista encontrada
+                    const createCardUrl = `https://api.trello.com/1/cards?idList=${targetList.id}&key=d76678cf9b909f80d60469a324cbfb8c&token=ATTAc8c23fed4d5ae8e1f4a0347d14f937eefb007a09d7025bbeb6ec010f6676a4365AF0E04E&name=${objetivo}`;
+
+                    // Criar o cartão
+                    await fetch(createCardUrl, { method: 'POST' });
+                    console.log(`OKR '${objetivo}' criado com sucesso na lista 'Objetivo'`);
+                }
+            } catch (error) {
+                console.error("Erro ao criar OKRs no Trello:", error);
+            }
+        }
+
+
+
+
+
+        async function deleteAllProjectsInWorkspace() {
+          event.preventDefault(); // Isso evitará que a página seja atualizada
+
+          const workspaceId = '1205278753339325';
+          const url = `https://app.asana.com/api/1.0/workspaces/${workspaceId}/projects`;
+
+          try {
+              // Obter todos os projetos no espaço de trabalho
+              const response = await fetch(url, {
+                  method: 'GET',
+                  headers: {
+                    'Authorization': 'Bearer 1/1198735305571370:365e53e913a327a68486518d9fa4363e'
+                  }
+              });
+
+              if (response.ok) {
+                  const projects = await response.json();
+
+                  // Laço para deletar cada projeto
+                  for (const project of projects.data) {
+                      await deleteAsanaProject(project.gid);
+                  }
+
+                  console.log('Todos os projetos no espaço de trabalho foram excluídos com sucesso');
+              } else {
+                  console.error('Erro ao obter projetos:', response.statusText);
+              }
+          } catch (error) {
+              console.error('Exceção ao obter projetos:', error);
+          }
+      }
+
+      async function deleteAsanaProject(projectID) {
+        const url = `https://app.asana.com/api/1.0/projects/${projectID}`;
+
+        try {
+            const response = await fetch(url, {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': 'Bearer 1/1198735305571370:365e53e913a327a68486518d9fa4363e'
+                }
+            });
+
+            const responseData = await response.json();
+
+            if (response.ok) {
+                console.log(`Projeto com ID ${projectID} excluído com sucesso`, responseData);
+            } else {
+                console.error(`Erro ao excluir o projeto com ID ${projectID}:`, responseData);
+            }
+        } catch (error) {
+            console.error(`Exceção ao excluir o projeto com ID ${projectID}:`, error);
+        }
+    }
+
+    async function getMetaSemanalFromDB(tarefaId) {
+      // Verifica se o tarefaId foi fornecido
+      if (!tarefaId) {
+          console.error("Erro: tarefaId é obrigatório para obter meta_semanal.");
+          return null;
+      }
+
+      // URL relativa do endpoint que retorna o meta_semanal para um tarefaId específico
+      const url = `/api/meta-semanal?tarefaId=${encodeURIComponent(tarefaId)}`;
+
+      try {
+          const response = await fetch(url);
+
+          // Adicionando o console.log para exibir o conteúdo bruto da resposta
+          const rawResponse = await response.text();
+
+          // Tentando analisar a resposta como JSON
+          const data = JSON.parse(rawResponse);
+
+          if (data.error) {
+              console.error("Erro ao obter meta_semanal do banco de dados:", data.error);
+              return null;
+          }
+
+          return data.meta_semanal;
+      } catch (error) {
+          console.error("Erro ao obter meta_semanal do banco de dados:", error);
+          return null;
+      }
+  }
+
+
+
+    async function createOKRTasks() {
+      const nomeSquad = document.getElementById('nome_squad_asana').value;
+      const nomeEmpresa = document.getElementById('nome_empresa_asana').value;
+      const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+      const empresaObj = empresasTokens.find(e => e.nome === nomeEmpresa);
+
+      if (!empresaObj) {
+          console.error("Empresa não encontrada no array empresasTokens.");
+          return;
+      }
+
+      const okrs = await getOKRs(nomeSquad, nomeEmpresa);
+      const projectID = JSON.parse(localStorage.getItem('projectID'));
+
+      const sections = await getSections(projectID);
+      const targetSection = sections.find(section => section.name === "Objetivo");
+
+      if (!targetSection) {
+          console.error("Seção 'Objetivo' não encontrada");
+          return;
+      }
+
+
+      for (const objetivo of okrs) {
+          var url = "https://app.asana.com/api/1.0/tasks";
+          var data = {
+              "data": {
+                  "name": objetivo,
+                  "projects": [projectID]
+              }
+          };
+
+          // Se metaSemanal estiver presente, defina-o como a descrição da tarefa
+
+
+          try {
+              const response = await fetch(url, {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': empresaObj.token
+                  },
+                  body: JSON.stringify(data)
+              });
+
+              const responseData = await response.json();
+
+              if (responseData.data && responseData.data.gid) {
+                  const taskID = responseData.data.gid;
+                  const moveUrl = `https://app.asana.com/api/1.0/sections/${targetSection.gid}/addTask`;
+                  const moveData = {
+                      "data": {
+                          "task": taskID
+                      }
+                  };
+
+                  await fetch(moveUrl, {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': empresaObj.token
+                      },
+                      body: JSON.stringify(moveData)
+                  });
+
+                  console.log("OKR '" + objetivo + "' criado com sucesso na seção 'Objetivo'");
+              } else {
+                  console.error("Falha ao criar OKR. Resposta da API:", responseData);
+              }
+          } catch (error) {
+              console.error("Erro ao criar OKR:", error);
+          }
+      }
+  }
+
+            async function getOKRs(nomeSquad, nomeEmpresa) {
+              console.log(nomeEmpresa)// Adicione o parâmetro nomeEmpresa
+              try {
+                  const response = await fetch(`/get_okrs_new?nome_squad=${nomeSquad}&nome_empresa=${nomeEmpresa}`);  // Adicione o parâmetro de consulta nome_empresa
+                   if (response.ok) {
+                      return await response.json();
+                  } else {
+                      console.error('Erro ao obter OKRs:', response.statusText);
+                      return [];
+                  }
+              } catch (error) {
+                  console.error('Exceção ao obter OKRs:', error);
+                  return [];
+              }
+          }
+
+
+
+          async function createKRTasksTrello() {
+            const nomeSquad = document.getElementById('nome_squad_trello').value;
+            const krs = await getKRs(nomeSquad);
+            const boardId = localStorage.getItem('boardId');
+
+            if (!boardId) {
+                console.error("ID do quadro não encontrado no localStorage");
+                return;
+            }
+
+            // URL para obter todas as listas do quadro
+            const getListsUrl = `https://api.trello.com/1/boards/${boardId}/lists?key=d76678cf9b909f80d60469a324cbfb8c&token=ATTAc8c23fed4d5ae8e1f4a0347d14f937eefb007a09d7025bbeb6ec010f6676a4365AF0E04E`;
+
+            const response = await fetch(getListsUrl);
+            const lists = await response.json();
+
+            // Encontrar a lista com o nome "KR"
+            const targetList = lists.find(list => list.name === "KR");
+
+            if (!targetList) {
+                console.error("Lista 'KR' não encontrada");
+                return;
+            }
+
+            for (const kr of krs) {
+                const createCardUrl = `https://api.trello.com/1/cards?idList=${targetList.id}&key=d76678cf9b909f80d60469a324cbfb8c&token=ATTAc8c23fed4d5ae8e1f4a0347d14f937eefb007a09d7025bbeb6ec010f6676a4365AF0E04E&name=${kr}`;
+
+                try {
+                    // Criar o cartão
+                    await fetch(createCardUrl, { method: 'POST' });
+                    console.log(`KR '${kr}' criado com sucesso na lista 'KR'`);
+                } catch (error) {
+                    console.error("Erro ao criar o cartão KR:", error);
+                }
+                console.log('Todos os KRS foram criados');
+
+              }
+          }
+
+          async function getKRs(nomeSquad, nomeEmpresa) {
+              try {
+                  const response = await fetch(`/get_krs_new?nome_squad=${nomeSquad}&nome_empresa=${nomeEmpresa}`);
+                  if (response.ok) {
+                      return await response.json();
+                  } else {
+                      console.error('Erro ao obter KRs:', response.statusText);
+                      return [];
+                  }
+              } catch (error) {
+                  console.error('Exceção ao obter KRs:', error);
+                  return [];
+              }
+          }
+
+
+
+        function fetchOpenBoardsForMacroActions() {
+          fetch('https://api.trello.com/1/members/me/boards?key=d76678cf9b909f80d60469a324cbfb8c&token=ATTAc8c23fed4d5ae8e1f4a0347d14f937eefb007a09d7025bbeb6ec010f6676a4365AF0E04E')
+            .then(response => response.json())
+            .then(boards => {
+              const openBoards = boards.filter(board => !board.closed);
+              openBoards.forEach(board => {
+                localStorage.setItem('boardId', board.id); // Set the boardId in localStorage
+                createMacroActionsTasksTrello();
+              });
+            })
+            .catch(err => console.error(err));
+        }
+
+    async function createMacroActionsTasksTrello() {
+      const nomeSquad = document.getElementById('nome_squad_trello').value;
+      const macroacoes = await getMacroacoes(nomeSquad);
+      console.log(macroacoes)
+      const boardId = localStorage.getItem('boardId');
+
+      if (!boardId) {
+          console.error("ID do quadro não encontrado no localStorage");
+          return;
+      }
+
+      // URL to get all lists of the board
+      const getListsUrl = `https://api.trello.com/1/boards/${boardId}/lists?key=d76678cf9b909f80d60469a324cbfb8c&token=ATTAc8c23fed4d5ae8e1f4a0347d14f937eefb007a09d7025bbeb6ec010f6676a4365AF0E04E`;
+
+      const response = await fetch(getListsUrl);
+      const lists = await response.json();
+
+      // Find the list with the name "Macro Ações"
+      const targetList = lists.find(list => list.name === "Macro Ações");
+
+      if (!targetList) {
+          console.error("Lista 'Macro Ações' não encontrada");
+          return;
+      }
+
+      for (const macroacao of macroacoes) {
+          const createCardUrl = `https://api.trello.com/1/cards?idList=${targetList.id}&key=d76678cf9b909f80d60469a324cbfb8c&token=ATTAc8c23fed4d5ae8e1f4a0347d14f937eefb007a09d7025bbeb6ec010f6676a4365AF0E04E&name=${macroacao}`;
+
+          try {
+              // Create the card
+              await fetch(createCardUrl, { method: 'POST' });
+              console.log(`Macroação '${macroacao}' criada com sucesso na lista 'Macro Ações'`);
+          } catch (error) {
+              console.error("Erro ao criar o cartão Macro Ação:", error);
+          }
+      }
+    }
+
+          async function getMacroacoes(nomeSquad, nomeEmpresa) {
+              try {
+                  const response = await fetch(`/get_macro_acoes_new?nome_squad=${nomeSquad}&nome_empresa=${nomeEmpresa}`);
+                  console.log(response)
+                  if (response.ok) {
+                      return await response.json();
+                  } else {
+                      console.error('Erro ao obter Macroações:', response.statusText);
+                      return [];
+                  }
+              } catch (error) {
+                  console.error('Exceção ao obter Macroações:', error);
+                  return [];
+              }
+          }
+
+          async function createTarefasMetasSemanaisTasksTrello() {
+            const nomeSquad = document.getElementById('nome_squad_trello').value;
+            const tarefasMetasSemanais = await getTarefasMetasSemanais(nomeSquad);
+            const boardId = localStorage.getItem('boardId');
+
+            if (!boardId) {
+                console.error("ID do quadro não encontrado no localStorage");
+                return;
+            }
+
+            const getListsUrl = `https://api.trello.com/1/boards/${boardId}/lists?key=d76678cf9b909f80d60469a324cbfb8c&token=ATTAc8c23fed4d5ae8e1f4a0347d14f937eefb007a09d7025bbeb6ec010f6676a4365AF0E04E`;
+
+            const response = await fetch(getListsUrl);
+            const lists = await response.json();
+
+            const targetList = lists.find(list => list.name === "Meta semanal e Tarefas");
+
+            if (!targetList) {
+                console.error("Lista 'Meta semanal e Tarefas' não encontrada");
+                return;
+            }
+
+            for (const item of tarefasMetasSemanais) {
+                const createCardUrl = `https://api.trello.com/1/cards?idList=${targetList.id}&key=d76678cf9b909f80d60469a324cbfb8c&token=ATTAc8c23fed4d5ae8e1f4a0347d14f937eefb007a09d7025bbeb6ec010f6676a4365AF0E04E&name=${encodeURIComponent(item)}&desc=`;
+
+                try {
+                    await fetch(createCardUrl, { method: 'POST' });
+                    console.log(`Tarefa '${item}' criada com sucesso na lista 'Meta semanal e Tarefas'`);
+                } catch (error) {
+                    console.error("Erro ao criar o cartão Tarefa:", error);
+                }
+            }
+        }
+
+        async function getTarefasMetasSemanais(nomeSquad, nomeEmpresa) {
+            try {
+                const response = await fetch(`/get_tarefas_metas_semanais_new?nome_squad=${nomeSquad}&nome_empresa=${nomeEmpresa})`);
+                if (response.ok) {
+                    return await response.json();
+                } else {
+                    console.error('Erro ao obter Tarefas e Metas Semanais:', response.statusText);
+                    return [];
+                }
+            } catch (error) {
+                console.error('Exceção ao obter Tarefas e Metas Semanais:', error);
+                return [];
+            }
+        }
+
+        async function updateSquadOptionsMonday() {
+          const nomeEmpresa = document.getElementById('nome_empresa_monday').value;
+          const nomeSquadSelect = document.getElementById('nome_squad_monday');
+
+          // Limpa as opções existentes
+          nomeSquadSelect.innerHTML = '';
+
+          const squads = await getSquadsAsana(nomeEmpresa); // Implementar esta função para obter os squads
+          for (const squad of squads) {
+            const option = document.createElement('option');
+            option.value = squad; // Considerando que o resultado é uma lista de strings com os nomes dos squads
+            option.textContent = squad;
+            nomeSquadSelect.appendChild(option);
+          }
+        }
+
+        // Exemplo de implementação de função getSquadsMonday
+        async function getSquadsMonday(nomeEmpresa) {
+          // Faça uma chamada à API para obter os squads com base no nome da empresa
+          // Retorne a lista de squads como uma lista de strings
+          // Implementação da lógica depende da estrutura de dados e da API do Monday
+          return ["Squad 1", "Squad 2"]; // Exemplo de retorno
+        }
+
+
+        async function createKRTasks() {
+            const nomeSquad = document.getElementById('nome_squad_asana').value;
+            const nomeEmpresa = document.getElementById('nome_empresa_asana').value;
+            const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+            const empresaObj = empresasTokens.find(e => e.nome === nomeEmpresa);
+
+            if (!empresaObj) {
+                console.error("Empresa não encontrada no array empresasTokens.");
+                return;
+            }
+
+            const krs = await getKRs(nomeSquad, nomeEmpresa);
+            const projectID = JSON.parse(localStorage.getItem('projectID'));
+
+            const sections = await getSections(projectID);
+            const targetSection = sections.find(section => section.name === "KR");
+
+            if (!targetSection) {
+                console.error("Seção 'KR' não encontrada");
+                return;
+            }
+
+            for (const texto of krs) {
+                var url = "https://app.asana.com/api/1.0/tasks";
+                var data = {
+                    "data": {
+                        "name": texto,
+                        "projects": [projectID]
+                    }
+                };
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': empresaObj.token
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    const responseData = await response.json();
+
+                    if (responseData.data && responseData.data.gid) {
+                        const taskID = responseData.data.gid;
+                        const moveUrl = `https://app.asana.com/api/1.0/sections/${targetSection.gid}/addTask`;
+                        const moveData = {
+                            "data": {
+                                "task": taskID
+                            }
+                        };
+
+                        await fetch(moveUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': empresaObj.token
+                            },
+                            body: JSON.stringify(moveData)
+                        });
+
+                        console.log("KR '" + texto + "' criado com sucesso na seção 'KR'");
+                    } else {
+                        console.error("Falha ao criar KR. Resposta da API:", responseData);
+                    }
+                } catch (error) {
+                    console.error("Erro ao criar KR:", error);
+                }
+            }
+        }
+        async function getKRs(nomeSquad, nomeEmpresa) {
+          try {
+              const response = await fetch(`/get_kr_new?nome_squad=${nomeSquad}&nome_empresa=${nomeEmpresa}`);
+              if (response.ok) {
+                  return await response.json();
+              } else {
+                  console.error('Erro ao obter KRs:', response.statusText);
+                  return [];
+              }
+          } catch (error) {
+              console.error('Exceção ao obter KRs:', error);
+              return [];
+          }
+      }
+
+        async function createMacroAcaoTasks() {
+          const nomeSquad = document.getElementById('nome_squad_asana').value;
+          const nomeEmpresa = document.getElementById('nome_empresa_asana').value;
+          const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+          const empresaObj = empresasTokens.find(e => e.nome === nomeEmpresa);
+
+          if (!empresaObj) {
+              console.error("Empresa não encontrada no array empresasTokens.");
+              return;
+          }
+
+          const macroAcoes = await getMacroAcoesAsana(nomeSquad, nomeEmpresa);
+          const projectID = JSON.parse(localStorage.getItem('projectID'));
+
+          const sections = await getSections(projectID);
+          const targetSection = sections.find(section => section.name === "Macro Ações");
+
+          if (!targetSection) {
+              console.error("Seção 'MacroAcoes' não encontrada");
+              return;
+          }
+
+          for (const texto of macroAcoes) {
+              var url = "https://app.asana.com/api/1.0/tasks";
+              var data = {
+                  "data": {
+                      "name": texto,
+                      "projects": [projectID]
+                  }
+              };
+
+              try {
+                  const response = await fetch(url, {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': empresaObj.token
+                      },
+                      body: JSON.stringify(data)
+                  });
+
+                  const responseData = await response.json();
+
+                  if (responseData.data && responseData.data.gid) {
+                      const taskID = responseData.data.gid;
+                      const moveUrl = `https://app.asana.com/api/1.0/sections/${targetSection.gid}/addTask`;
+                      const moveData = {
+                          "data": {
+                              "task": taskID
+                          }
+                      };
+
+                      await fetch(moveUrl, {
+                          method: 'POST',
+                          headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': empresaObj.token
+                          },
+                          body: JSON.stringify(moveData)
+                      });
+
+                      console.log("MacroAcao '" + texto + "' criado com sucesso na seção 'MacroAcoes'");
+                  } else {
+                      console.error("Falha ao criar MacroAcao. Resposta da API:", responseData);
+                  }
+              } catch (error) {
+                  console.error("Erro ao criar MacroAcao:", error);
+              }
+          }
+      }
+
+      async function getMacroAcoesAsana(nomeSquad, nomeEmpresa) {
+          try {
+              const response = await fetch(`/get_macro_acoes_new?nome_squad=${nomeSquad}&nome_empresa=${nomeEmpresa}`);
+              if (response.ok) {
+                  return await response.json();
+              } else {
+                  console.error('Erro ao obter MacroAcoes:', response.statusText);
+                  return [];
+              }
+          } catch (error) {
+              console.error('Exceção ao obter MacroAcoes:', error);
+              return [];
+          }
+      }
+
+      async function getTarefaIdFromName(tarefaNome) {
+        const url = `/api/get-tarefa-id?nome=${encodeURIComponent(tarefaNome)}`;
+
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.error) {
+                console.error("Erro ao obter ID da tarefa:", data.error);
+                return null;
+            }
+
+            return data.id;
+        } catch (error) {
+            console.error("Erro ao obter ID da tarefa:", error);
+            return null;
+        }
+    }
+
+      async function createTarefasMetasSemanaisTasksAsana() {
+        const nomeSquad = document.getElementById('nome_squad_asana').value;
+        const nomeEmpresa = document.getElementById('nome_empresa_asana').value;
+        const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+        const empresaObj = empresasTokens.find(e => e.nome === nomeEmpresa);
+
+        if (!empresaObj) {
+            console.error("Empresa não encontrada no array empresasTokens.");
+            return;
+        }
+
+        const tarefasMetasSemanais = await getTarefasMetasSemanais(nomeSquad, nomeEmpresa);
+        const projectID = JSON.parse(localStorage.getItem('projectID'));
+
+        const sections = await getSections(projectID);
+        const targetSection = sections.find(section => section.name === "Meta semanal e Tarefas");
+
+        if (!targetSection) {
+            console.error("Seção 'Meta semanal e Tarefas' não encontrada");
+            return;
+        }
+
+        for (const tarefaNome of tarefasMetasSemanais) {
+          const tarefaId = await getTarefaIdFromName(tarefaNome);
+
+          const metaSemanal = await getMetaSemanalFromDB(tarefaId);
+
+          // Supondo que tarefa.id seja o ID da tarefa
+
+            var url = "https://app.asana.com/api/1.0/tasks";
+            var data = {
+                "data": {
+                    "name": tarefaNome,
+                    "notes": metaSemanal, // Adicionando a descrição meta_semanal
+                    "projects": [projectID]
+                }
+            };
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': empresaObj.token
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const responseData = await response.json();
+
+                if (responseData.data && responseData.data.gid) {
+                    const taskID = responseData.data.gid;
+                    const moveUrl = `https://app.asana.com/api/1.0/sections/${targetSection.gid}/addTask`;
+                    const moveData = {
+                        "data": {
+                            "task": taskID
+                        }
+                    };
+
+                    await fetch(moveUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': empresaObj.token
+                        },
+                        body: JSON.stringify(moveData)
+                    });
+
+                } else {
+                    console.error("Falha ao criar Tarefa e Meta Semanal. Resposta da API:", responseData);
+                }
+            } catch (error) {
+                console.error("Erro ao criar Tarefa e Meta Semanal:", error);
+            }
+        }
+    }
+
+    async function getTarefasMetasSemanais(nomeSquad, nomeEmpresa) {
+      try {
+          const response = await fetch(`/get_tarefas_metas_semanais_new?nome_squad=${nomeSquad}&nome_empresa=${nomeEmpresa}`);
+          const result = await response.json();
+          console.log("Resposta da API:", result); // Log aqui
+          return result;
+      } catch (error) {
+          console.error('Exceção ao obter Tarefas e Metas Semanais:', error);
+          return [];
+      }
+  }
+
+  async function criarBoardMonday(event) {
+    event.preventDefault(); // Evitar o recarregamento da página
+
+    const nomeSquadSelect = document.getElementById('nome_squad_monday').value;
+    const apiKey = 'eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjI3NDYxNzYzMiwiYWFpIjoxMSwidWlkIjo0NzA5MzAwOCwiaWFkIjoiMjAyMy0wOC0xMVQxODowNjo1MC4yODNaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6MTgyNDYyNDgsInJnbiI6InVzZTEifQ.Xql1VwfHOeOlRS08vU9fm12TNd3gD9FgK05M9Y2BZqc'; // Substitua com seu token de API
+
+    const query = `
+      mutation {
+        create_board (board_name: "${nomeSquadSelect}", board_kind: public) {
+          id
+        }
+      }`;
+
+    try {
+      const response = await fetch("https://api.monday.com/v2", {
+        method: 'post',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': apiKey
+        },
+        body: JSON.stringify({
+          'query': query
+        })
+      });
+
+      const data = await response.json();
+      console.log('Board criado com sucesso:', data);
+      const boardId = data.data.create_board.id;
+
+      // Chamar a função para criar os grupos
+
+      // Chamar a função para criar as seções (colunas) no quadro
+      await criarSecoesMonday(boardId, apiKey);
+    } catch (error) {
+      console.error('Erro ao criar o board:', error);
+    }
+  }
+
+
+async function criarSecoesMonday(boardId, apiKey) {
+  const secoes = ["Tarefas concluídas", "Tarefas em andamento", "Meta semanal e Tarefas", "Macro Ações", "KR", "Objetivo"];
+  const columnIds = {};
+
+  for (let nomeSecao of secoes) {
+    // Utilize uma mutação para criar uma coluna
+    const query = `
+      mutation {
+        create_column (board_id: ${boardId}, title: "${nomeSecao}", column_type: text) {
+          id
+          title
+        }
+      }
+    `;
+
+    try {
+      const response = await fetch("https://api.monday.com/v2", {
+        method: 'post',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': apiKey
+        },
+        body: JSON.stringify({
+          'query': query
+        })
+      });
+
+      if (!response.ok) {
+        console.error("Erro ao criar a coluna:", await response.text());
+        continue; // Pula para a próxima iteração se houver um erro
+      }
+
+      const responseData = await response.json();
+      console.log("Coluna '" + nomeSecao + "' criada com sucesso:", responseData);
+
+      // Adicionar o ID da coluna ao objeto columnIds
+      columnIds[nomeSecao] = responseData.data.create_column.id;
+    } catch (error) {
+      console.error("Houve um erro ao criar a coluna '" + nomeSecao + "':", error);
+    }
+  }
+
+  // Armazenar os IDs das colunas em algum lugar, como localStorage
+  localStorage.setItem('mondayColumnIds', JSON.stringify(columnIds));
+}
+
+
+
+
+
+
+
+
+
+
+
+    </script>
+
+    <style>
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-gap: 20px;
+        }
+
+        .grid-item {
+            border: 1px solid #ccc;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 10px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        option{
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        input {
+            width: 100%;
+            padding: 5px;
+        }
+
+        select {
+            width: 100%;
+            padding: 5px;
+        }
+    </style>
+{% endblock %}
+
+<!-- ES360 Asana: 1/1205186190607018:cb1b4f178c3fecb0fb634508aa56d915 -->
+

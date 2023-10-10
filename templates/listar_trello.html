@@ -1,0 +1,458 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Empresas</h1>
+    <a class="btn" href="{{ url_for('cadastrar_trello') }}">Cadastrar Tarefas</a>
+
+    <label for="filter">Filtrar por posição:</label>
+<select id="filter" onchange="filterTable()">
+  <option value=""></option>
+  <option value="Objetivo">Objetivo</option>
+  <option value="KR">KR</option>
+  <option value="Macro Ações">Macro Ações</option>
+  <option value="Meta semanal e Tarefas">Meta semanal e Tarefas</option>
+  <option value="Tarefas em andamento">Tarefas em andamento</option>
+  <option value="Tarefas concluídas">Tarefas concluídas</option>
+</select><br>
+<a id="cadastrarBtn" class="btn" onclick="cadastrarTarefasAtuais()">Cadastrar no banco de dados</a>
+
+    <table class="styled-table">
+        <thead>
+            <tr>
+                <th>Nome da Tarefa</th>
+                <th>Sub Tarefa</th>
+                <th>Descrição</th>
+                <th>Posição do card</th>
+                <th>Data de início</th>
+                <th>Data de conclusão</th>
+                <th>Nome da Empresa</th>
+                <th>Nome do Squad</th>
+                <th>Plataforma</th>
+
+            </tr>
+        </thead>
+        <tbody id="trello-table-body" class="styled-table"></tbody>
+    </table>
+
+    <script>
+
+
+      function clearBoardData() {
+        localStorage.removeItem('nomeEmpresaTrello');
+        localStorage.removeItem('asanaBoardName');
+        localStorage.removeItem('trelloListIds');
+        // e qualquer outra coisa que você queira limpar
+      }
+
+      var originalData = [];
+
+      async function cadastrarTarefasAtuais() {
+    event.preventDefault();
+    var tarefas = [];
+
+    var tabela = document.getElementById('trello-table-body');
+
+    for (var row of tabela.rows) {
+        var squadName = row.cells[7].textContent;
+        var empresaName = row.cells[6].textContent;
+        var status = row.cells[3].textContent;
+
+        // Supondo que as subtarefas são separadas por vírgulas
+        var subtarefasList = row.cells[1].textContent.split(',').map(subtarefa => ({name: subtarefa.trim()}));
+
+        try {
+            let response = await fetch('/get_squad_id?squad_name=' + encodeURIComponent(squadName) + '&empresa_name=' + encodeURIComponent(empresaName));
+            let data = await response.json();
+
+            if (data.success) {
+                tarefas.push({
+                    empresa: empresaName,
+                    subtarefas: subtarefasList,
+                    squad_name: squadName,
+                    squad_id: data.squad_id,
+                    tarefa: row.cells[0].textContent,
+                });
+            } else {
+                console.log('Erro ao obter ID do esquadrão:', data.error);
+            }
+        } catch (error) {
+            console.log('Erro na chamada fetch:', error);
+        }
+    }
+
+        try {
+          if(status == "Tarefas em andamento"){
+              let response = await fetch('/cadastrar_tarefas_atuais_new', {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({ tarefas })
+              });
+              let data = await response.json();
+              console.log(data)
+
+              if (data.success) {
+                  alert('Tarefas cadastradas com sucesso!');
+              } else {
+                  console.log(data.error);
+              }
+          }
+          else if(status == "Tarefas concluídas"){
+            console.log("dhusa")
+            let response = await fetch('/cadastrar_tarefas_concluidas_new', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ tarefas })
+              });
+              let data = await response.json();
+
+              if (data.success) {
+                  alert('Tarefas cadastradas com sucesso!');
+            } else {
+                console.log(data.error);
+            }
+          }
+        } catch (error) {
+            alert('Erro ao cadastrar tarefas:' + error);
+        }
+    }
+
+    function fetchOpenBoards() {
+      fetch('https://api.trello.com/1/members/me/boards?key=d76678cf9b909f80d60469a324cbfb8c&token=ATTAc8c23fed4d5ae8e1f4a0347d14f937eefb007a09d7025bbeb6ec010f6676a4365AF0E04E')
+        .then(response => response.json())
+        .then(boards => {
+          const openBoards = boards.filter(board => !board.closed);
+          openBoards.forEach(board => fetchTrelloCards(board.id, board.name));
+          //fetchMondayAllItems(4919630459);
+          // Chama a função para buscar as tarefas do Asana
+          fetchAsanaTasks();
+
+          // Chama a função para buscar todos os itens do Monday
+
+        })
+        .catch(err => console.error(err));
+  }
+
+
+      function fetchTrelloCards(boardId, boardName) {
+        const plataforma = localStorage.getItem('plataformaTrello');
+        const nomeEmpresaTrello = localStorage.getItem('nomeEmpresaTrello');
+        const listIds = JSON.parse(localStorage.getItem('trelloListIds'));
+
+        fetch(`https://api.trello.com/1/boards/${boardId}/cards?key=d76678cf9b909f80d60469a324cbfb8c&token=ATTAc8c23fed4d5ae8e1f4a0347d14f937eefb007a09d7025bbeb6ec010f6676a4365AF0E04E`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        })
+          .then(response => response.json())
+          .then(data => {
+            var treatedData = data.map(card => {
+              var pos;
+              switch (card.idList) {
+                case listIds["Objetivo"]:
+                  pos = "Objetivo";
+                  break;
+                case listIds["KR"]:
+                  pos = "KR";
+                  break;
+                case listIds["Macro Ações"]:
+                  pos = "Macro Ações";
+                  break;
+                case listIds["Meta semanal e Tarefas"]:
+                  pos = "Meta semanal e Tarefas";
+                  break;
+                case listIds["Tarefas em andamento"]:
+                  pos = "Tarefas em andamento";
+                  break;
+                case listIds["Tarefas concluídas"]:
+                  pos = "Tarefas concluídas";
+                  break;
+                default:
+                  pos = card.idList;
+                }
+
+                var timestampHex = card.id.substring(0, 8);
+                var timestamp = parseInt(timestampHex, 16) * 1000;
+                var creationDate = new Date(timestamp).toLocaleDateString();
+
+                return {
+                  nome_tarefa: card.name,
+                  desc: card.desc,
+                  pos: pos,
+                  start: creationDate,
+                  close: "",
+                  nome_empresa: nomeEmpresaTrello,
+                  nome_squad: boardName,
+                  plataforma: plataforma // Nome do quadro
+                };
+              });
+              addData(treatedData); // Chame a função addData com os dados tratados
+            })
+            .catch(err => console.error(err));
+        }
+
+
+
+        function fetchAsanaTasks() {
+          const plataforma = localStorage.getItem('plataformaAsana');
+          const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+
+          const formatDate = (dateString) => {
+              const date = new Date(dateString);
+              const day = String(date.getDate()).padStart(2, '0');
+              const month = String(date.getMonth() + 1).padStart(2, '0');
+              const year = date.getFullYear();
+              return `${day}/${month}/${year}`;
+          };
+
+          empresasTokens.forEach(empresa => {
+              const workSette = empresa.workspace;
+
+              // Buscar o nome do time
+              fetch(`https://app.asana.com/api/1.0/workspaces/${workSette}/teams`, {
+                  method: 'GET',
+                  headers: {
+                      'Authorization': empresa.token,
+                      'Accept': 'application/json'
+                  }
+              })
+              .then(response => response.json())
+              .then(teamData => {
+                  const nomeEmpresaAsana = empresa.nome;  // Usando o nome da empresa diretamente do objeto empresa
+
+                  // Depois de obter o nome da empresa, buscar os projetos
+                  fetch(`https://app.asana.com/api/1.0/workspaces/${workSette}/projects?archived=false`, {
+                      method: 'GET',
+                      headers: {
+                          'Authorization': empresa.token,
+                          'Accept': 'application/json'
+                      }
+                  })
+                  .then(response => response.json())
+                  .then(projectsData => {
+                      projectsData.data.forEach(project => {
+                          const projectId = project.gid;
+                          const boardName = project.name;
+
+                          // Para cada projeto, buscar as seções
+                          fetch(`https://app.asana.com/api/1.0/projects/${projectId}/sections`, {
+                              method: 'GET',
+                              headers: {
+                                  'Authorization': empresa.token,
+                                  'Accept': 'application/json'
+                              }
+                          })
+                          .then(response => response.json())
+                          .then(sectionsData => {
+                              const promises = sectionsData.data.map(section => {
+                                  const sectionName = section.name;
+                                  const sectionGid = section.gid;
+
+                                  // Buscar as tarefas para cada seção
+                                  return fetch(`https://app.asana.com/api/1.0/sections/${sectionGid}/tasks`, {
+                                      method: 'GET',
+                                      headers: {
+                                          'Authorization': empresa.token,
+                                          'Accept': 'application/json'
+                                      }
+                                  })
+                                  .then(response => response.json())
+                                  .then(data => {
+                                      const taskPromises = data.data.map(task =>
+                                          fetch(`https://app.asana.com/api/1.0/tasks/${task.gid}`, {
+                                              method: 'GET',
+                                              headers: {
+                                                  'Authorization': empresa.token,
+                                                  'Accept': 'application/json'
+                                              }
+                                          })
+                                          .then(response => response.json())
+                                          .then(taskData => {
+                                              // Buscar sub-tarefas para cada task.gid
+                                              return fetch(`https://app.asana.com/api/1.0/tasks/${task.gid}/subtasks`, {
+                                                  method: 'GET',
+                                                  headers: {
+                                                      'Authorization': empresa.token,
+                                                      'Accept': 'application/json'
+                                                  }
+                                              })
+                                              .then(response => response.json())
+                                              .then(subtasksData => {
+                                                  const subtasks = '- ' + subtasksData.data.map(subtask => subtask.name).join('\n - ');
+                                                  return {
+                                                      nome_tarefa: taskData.data.name,
+                                                      sub_tarefa: subtasks,
+                                                      desc: taskData.data.notes,
+                                                      pos: sectionName,
+                                                      start: taskData.data.created_at ? formatDate(taskData.data.created_at) : "",
+                                                      close: "",
+                                                      nome_empresa: nomeEmpresaAsana,
+                                                      nome_squad: boardName,
+                                                      plataforma: plataforma
+                                                  };
+                                              });
+                                          })
+                                      );
+
+                                      return Promise.all(taskPromises);
+                                  });
+                              });
+
+                              Promise.all(promises)
+                                  .then(results => [].concat(...results))
+                                  .then(treatedData => {
+                                      addData(treatedData);
+                                  })
+                                  .catch(err => console.error("Erro nas promessas:", err));
+                          });
+                      });
+                  });
+              });
+          });
+      }
+
+
+        function fetchMondayAllItems(board_id) {
+          const query = `query {
+            boards(ids: ${board_id}) {
+              items {
+                id
+                name
+                created_at
+                column_values {
+                  title
+                  value
+                }
+              }
+            }
+          }`;
+
+          fetch("https://api.monday.com/v2", {
+            method: 'post',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjI3MjY3NjMyMywiYWFpIjoxMSwidWlkIjo0NjU2NjU2OSwiaWFkIjoiMjAyMy0wOC0wMlQxNzoyMDowMi4wMDBaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6MTgxMDI1ODMsInJnbiI6InVzZTEifQ.xJCdBQja5b-jEAlP_Mga8Dh65iVC0glZhxUsPoCzMl0'
+            },
+            body: JSON.stringify({
+              query: query
+            })
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (data.errors) {
+              console.error("Erros da API:", data.errors);
+              return;
+            }
+
+            const items = data.data.boards[0].items.map(item => {
+              const statusColumn = item.column_values.find(column => column.title === "Status");
+              const status = statusColumn ? JSON.parse(statusColumn.value).index : null;
+              const creationDate = new Date(item.created_at).toLocaleDateString();
+
+              return {
+                nome_tarefa: item.name,
+                pos: status === 0 ? "To Do" : status === 1 ? "Doing" : "Done",
+                start: creationDate,
+                nome_squad: "Monday"
+              };
+            });
+
+            populateTable(items);
+          })
+          .catch(err => console.error(err));
+        }
+
+
+        function filterTable() {
+          var filterValue = document.getElementById('filter').value.trim(); // Remova qualquer espaço em branco
+          var data = originalData;
+
+
+
+          if (filterValue) {
+            data = data.filter(item => {
+              return item.pos === filterValue;
+            });
+          }
+
+          console.log("Dados filtrados:", data); // Imprime os dados após o filtro
+
+          populateTable(data);
+        }
+
+        function addData(newData) {
+          originalData = originalData.concat(newData);
+          populateTable(originalData);
+        }
+
+        function populateTable(data) {
+          var tbody = document.getElementById('trello-table-body');
+          tbody.innerHTML = '';
+
+          for (var i = 0; i < data.length; i++) {
+              var tr = document.createElement('tr');
+
+              var tdName = document.createElement('td');
+              tdName.textContent = data[i].nome_tarefa;
+              tr.appendChild(tdName);
+
+              var tdSub = document.createElement('td');
+              tdSub.innerText = data[i].sub_tarefa; // Alterado para innerText
+              tdSub.style.whiteSpace = 'pre-line';  // Adicionado para preservar quebras de linha
+              tr.appendChild(tdSub);
+
+              var tdDesc = document.createElement('td');
+              tdDesc.textContent = data[i].desc;
+              tr.appendChild(tdDesc);
+
+              var tdPos = document.createElement('td');
+              tdPos.textContent = data[i].pos;
+              tr.appendChild(tdPos);
+
+              var tdStart = document.createElement('td');
+              tdStart.textContent = data[i].start;
+              tr.appendChild(tdStart);
+
+              var tdClosed = document.createElement('td');
+              tdClosed.textContent = data[i].close;
+              tr.appendChild(tdClosed);
+
+              var tdEmpresa = document.createElement('td');
+              tdEmpresa.textContent = data[i].nome_empresa;
+              tr.appendChild(tdEmpresa);
+
+              var tdSquad = document.createElement('td');
+              tdSquad.textContent = data[i].nome_squad;
+              tr.appendChild(tdSquad);
+
+              var tdPlat = document.createElement('td');
+              tdPlat.textContent = data[i].plataforma;
+              tr.appendChild(tdPlat);
+
+              tbody.appendChild(tr);
+          }
+      }
+
+        fetchOpenBoards();
+
+
+
+
+
+    </script>
+{% endblock %}
+
+<!-- asana:
+
+coluna1:
+1205186491478875
+
+coluna 2:
+1205186494727059
+
+coluna3:
+1205186494727060 -->
