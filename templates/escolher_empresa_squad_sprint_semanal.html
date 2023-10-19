@@ -45,7 +45,7 @@
               },
               {
                 nome: "Colégio Mopi",
-                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                token: 'Bearer 1/1205316107728184:00826bd0b7f0b5d590b98eebdd07d2ad',
                 workspace: '1205380996045685',
                 team: '1205380996045687'
               },
@@ -88,25 +88,24 @@
 
 
 
-              function updateSquads() {
-                const empresaId = document.getElementById('empresa_id').value;
-                fetch('/get_squads_sprint/' + empresaId)
-                    .then(response => response.json())
-                    .then(data => {
-                        const squadDropdown = document.getElementById('squad_id');
-                        squadDropdown.innerHTML = "";
-                        data.forEach(squad => {
-                            const option = document.createElement('option');
-                            option.value = squad.id;
-                            option.innerText = squad.nome;
-                            squadDropdown.appendChild(option);
-                        });
-                        // Mova a chamada para salvarDadosNoLocalStorage para aqui
-                        salvarDadosNoLocalStorage();
+        function updateSquads() {
+            const empresaId = document.getElementById('empresa_id').value;
+            fetch('/get_squads_sprint/' + empresaId)
+                .then(response => response.json())
+                .then(data => {
+                    const squadDropdown = document.getElementById('squad_id');
+                    squadDropdown.innerHTML = "";
+                    data.forEach(squad => {
+                        const option = document.createElement('option');
+                        option.value = squad.id;
+                        option.innerText = squad.nome;
+                        squadDropdown.appendChild(option);
                     });
-            }
+                });
+        }
 
        async function fetchAsanaKRs() {
+        console.log("entrou")
 
             const empresaId = await fetchEmpresaId();
             console.log(empresaId)
@@ -237,6 +236,147 @@
         }
 
 
+        async function fetchKanbaTasks(boardID) {
+            const colunas = await getColunas(boardID);
+            const colunaTarefasEmAndamento = colunas.data.find(coluna => coluna.name === "Tarefas em andamento");
+
+            if (!colunaTarefasEmAndamento) {
+                console.error("Coluna 'Tarefas em andamento' não encontrada.");
+                return;
+            }
+
+            const response = await fetch(`http://localhost:3000/proxy/cards`);
+            const data = await response.json();
+
+            if (data.error) {
+                console.error(data.error);
+                return;
+            }
+
+            const cards = data.data.data.filter(card => card.board_id === boardID && card.column_id === colunaTarefasEmAndamento.column_id);
+
+            // Função para remover tags HTML
+            function stripHtml(html) {
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                return doc.body.textContent || "";
+            }
+
+            // Pegar as subtasks de cada card
+            for (let card of cards) {
+                const subtasksResponse = await fetch(`http://localhost:3000/proxy/cards_desc/${card.card_id}`);
+                const subtasksData = await subtasksResponse.json();
+                card.subtasks = subtasksData.data.subtasks || []; // Adicionando as subtasks ao card
+
+                // Limpar tags HTML das subtasks
+                for (let subtask of card.subtasks) {
+                    subtask.description = stripHtml(subtask.description);
+                }
+            }
+
+            return cards;
+        }
+
+        async function fetchKanbaTasksConcluidas(boardID) {
+            const colunas = await getColunas(boardID);
+            const colunaTarefasConcluidas = colunas.data.find(coluna => coluna.name === "Tarefas concluídas");
+
+            if (!colunaTarefasConcluidas) {
+                console.error("Coluna 'Tarefas concluídas' não encontrada.");
+                return;
+            }
+
+            const response = await fetch(`http://localhost:3000/proxy/cards`);
+            const data = await response.json();
+
+            if (data.error) {
+                console.error(data.error);
+                return;
+            }
+
+            const cards = data.data.data.filter(card => card.board_id === boardID && card.column_id === colunaTarefasConcluidas.column_id);
+
+            // Função para remover tags HTML
+            function stripHtml(html) {
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                return doc.body.textContent || "";
+            }
+
+            // Pegar as subtasks de cada card
+            for (let card of cards) {
+                const subtasksResponse = await fetch(`http://localhost:3000/proxy/cards_desc/${card.card_id}`);
+                const subtasksData = await subtasksResponse.json();
+                card.subtasks = subtasksData.data.subtasks || []; // Adicionando as subtasks ao card
+
+                // Limpar tags HTML das subtasks
+                for (let subtask of card.subtasks) {
+                    subtask.description = stripHtml(subtask.description);
+                }
+            }
+
+            return cards;
+        }
+
+        async function fetchKanbaTasksAndCompare() {
+            const empresaName = localStorage.getItem('empresaName');
+            const squadName = localStorage.getItem('squadName');
+
+            const boardID = await getBoards();
+            const asanaTasks = await fetchKanbaTasks(boardID);
+            console.log(asanaTasks)
+            const asanaConcluidas = await fetchKanbaTasksConcluidas(boardID);
+            const dbTasks = await fetchTarefasAtuais();
+            const dbTasksConc = await fetchTarefasFinalizadas();
+
+            await registerTasksInDatabaseKanba(asanaTasks);
+            await registerTasksInDatabaseConcluidosKanba(asanaConcluidas);
+
+            const asanaTaskNames = asanaTasks.map(task => task.title.toLowerCase().trim());
+            const tasksToDelete = dbTasks.filter(dbTask => !asanaTaskNames.includes(dbTask.nome_tarefa.toLowerCase().trim()) && dbTask.nome_empresa === empresaName && dbTask.nome_squad === squadName);
+            for (const task of tasksToDelete) {
+                const deletionResult = await deleteTarefa(task.id);
+                console.log("Tarefa deletada!")
+
+            }
+
+            const asanaTaskNamesConc = asanaConcluidas.map(task => task.title.toLowerCase().trim());
+            console.log(asanaTaskNamesConc)
+            const tasksToDeleteConc = dbTasksConc.filter(dbTasksConc => !asanaTaskNamesConc.includes(dbTasksConc.nome_tarefa.toLowerCase().trim()) && dbTasksConc.nome_empresa === empresaName && dbTasksConc.nome_squad === squadName);
+            console.log(tasksToDeleteConc)
+            for (const task of tasksToDeleteConc) {
+                const deletionResult = await deleteTarefaConcluidos(task.id);
+                console.log("Tarefa deletada!")
+            }
+        }
+
+        async function getColunas(boardID) {
+            console.log("Board:" + boardID)
+            const proxyUrl = `http://localhost:3000/proxy/boards/${boardID}/columns`;
+            const nomeEmpresaKanba = localStorage.getItem('nomeEmpresaKanba');
+            const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+            const empresaObj = empresasTokens.find(empresa => empresa.nome === nomeEmpresaKanba);
+            if (!empresaObj) {
+                console.error("Empresa não encontrada no array empresasTokens.");
+                return [];
+            }
+            const empresaToken = empresaObj.token;
+
+            const response = await fetch(proxyUrl, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': empresaToken
+                }
+            });
+
+            if (!response.ok) {
+                console.error("Erro ao obter colunas:", await response.text());
+                return [];
+            }
+
+            return await response.json();
+        }
+
+
         async function runAsanaFunctions(event) {
             event.preventDefault();
             document.querySelector('form').submit();
@@ -274,8 +414,8 @@
         }
 
 
-
         async function registerTasksInDatabase(tasks) {
+            console.log(tasks)
             for (let task of tasks) {
                 const verificaExistencia = await fetch('/verificar_tarefa_existente', {
                     method: 'POST',
@@ -292,7 +432,7 @@
                     continue;
                 }
 
-                const response = await fetch('/cadastrar_tarefas_atuais', {
+                const response = await fetch('/cadastrar_tarefas_atuais_new', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -302,7 +442,7 @@
 
                 const responseData = await response.json();
 
-                console.log(`Resultado da chamada /cadastrar_tarefas_atuais para tarefa:`, task, responseData);
+                console.log('Resultado da chamada /cadastrar_tarefas_atuais para tarefa:', task, responseData);
 
                 if (!responseData.success) {
                     console.error(`Erro ao adicionar tarefa: ${responseData.error}`);
@@ -311,6 +451,112 @@
 
         }
 
+        async function registerTasksInDatabaseKanba(tasks) {
+            const empresaName = localStorage.getItem('empresaName');
+            const squadName = localStorage.getItem('squadName');
+
+            console.log("Tasks recebidas:", tasks);
+
+            for (let task of tasks) {
+                console.log("Processando task:", task.title);
+
+                const verificaExistencia = await fetch('/verificar_tarefa_existente_kanba', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        tarefa: task.title,
+                        empresa: empresaName,
+                        squad_name: squadName
+                    })
+                });
+
+                const verificaResposta = await verificaExistencia.json();
+
+                console.log("Resposta da verificação:", verificaResposta);
+
+                if (verificaResposta.existe) {
+                    console.log("Tarefa já existe, pulando:", task.title);
+                    continue;
+                }
+
+                const subtasksDescriptions = task.subtasks.map(subtask => subtask.description);
+
+                console.log("Subtarefas processadas:", subtasksDescriptions);
+
+                const response = await fetch('/cadastrar_tarefas_atuais_kanba', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        tarefas: [{
+                            title: task.title,
+                            subtarefas: subtasksDescriptions
+                        }],
+                        empresa: empresaName,
+                        squad_name: squadName
+                    })
+                });
+
+                const responseData = await response.json();
+
+                console.log("Resposta do cadastro:", responseData);
+
+                if (!responseData.success) {
+                    console.error(`Erro ao adicionar tarefa: ${responseData.error}`);
+                }
+            }
+        }
+
+        async function registerTasksInDatabaseConcluidosKanba(tasks) {
+            const empresaName = localStorage.getItem('empresaName');
+            const squadName = localStorage.getItem('squadName');
+
+            for (let task of tasks) {
+                const verificaExistencia = await fetch('/verificar_tarefa_existente_concluidas_kanba', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        tarefa: task.title,
+                        empresa: empresaName,
+                        squad_name: squadName
+                    })
+                });
+
+                const verificaResposta = await verificaExistencia.json();
+
+                if (verificaResposta.existe) {
+                    continue;
+                }
+
+                const subtasksDescriptions = task.subtasks.map(subtask => subtask.description);
+
+                const response = await fetch('/cadastrar_tarefas_concluidas_kanba', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        tarefas: [{
+                            title: task.title,
+                            subtarefas: subtasksDescriptions
+                        }],
+                        empresa: empresaName,
+                        squad_name: squadName
+                    })
+                });
+
+                const responseData = await response.json();
+
+                if (!responseData.success) {
+                    console.error(`Erro ao adicionar tarefa: ${responseData.error}`);
+                }
+            }
+        }
 
 
         async function fetchAsanaTasks() {
@@ -551,7 +797,7 @@
                     continue;
                 }
 
-                const response = await fetch('/cadastrar_tarefas_concluidas', {
+                const response = await fetch('/cadastrar_tarefas_concluidas_new', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -569,7 +815,6 @@
         async function fetchTarefasAtuais() {
             const empresaName = localStorage.getItem('empresaName');
             const squadName = localStorage.getItem('squadName');
-
             const response = await fetch('/get_tarefas_atuais', {
                 method: 'POST',
                 headers: {
@@ -583,10 +828,10 @@
             return response.json();
         }
 
+
         async function fetchTarefasFinalizadas() {
             const empresaName = localStorage.getItem('empresaName');
             const squadName = localStorage.getItem('squadName');
-
             const response = await fetch('/get_tarefas_concluidas', {
                 method: 'POST',
                 headers: {
@@ -615,13 +860,14 @@
         function salvarDadosNoLocalStorage() {
             const empresaDropdown = document.getElementById('empresa_id');
             const squadDropdown = document.getElementById('squad_id');
-            squadDropdown.selectedIndex = 0; // Seleciona o primeiro squad da lista
             const empresaName = empresaDropdown.options[empresaDropdown.selectedIndex].text;
             const squadName = squadDropdown.options[squadDropdown.selectedIndex].text;
-            console.log(squadName)
+
             localStorage.setItem('empresaName', empresaName);
             localStorage.setItem('squadName', squadName);
         }
+
+
 
         async function fetchEmpresaId() {
             const empresaName = localStorage.getItem('empresaName');
@@ -645,13 +891,10 @@
         async function fetchSquadId() {
             const squadName = localStorage.getItem('squadName');
             const empresaName = localStorage.getItem('empresaName');
-            console.log(empresaName)
-            console.log(squadName)
 
             try {
                 const response = await fetch(`/get_squad_id?squad_name=${encodeURIComponent(squadName)}&empresa_name=${encodeURIComponent(empresaName)}`);
                 const data = await response.json();
-                console.log(data)
                 if (data.success) {
                     return data.squad_id;
                 } else {
@@ -768,7 +1011,7 @@
               },
               {
                 nome: "Colégio Mopi",
-                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                token: 'Bearer 1/1205316107728184:00826bd0b7f0b5d590b98eebdd07d2ad',
                 workspace: '1205380996045685',
                 team: '1205380996045687'
               },
@@ -809,8 +1052,33 @@
                 team: '1205540470200320'
               },
               {
-                nome: "kkkkkkkkkkkkkkkkkkkkkkkkkk",
+                nome: "Planeta Sublimação",
                 token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                workspace: '1205619173673240',
+                team: '1205619173673242'
+              },
+              {
+                nome: "Espaço Pontal",
+                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                workspace: '1205634578408157',
+                team: '1205634578408159'
+              },
+              {
+                nome: "Rafael Oliveira",
+                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                workspace: '1205684136448505',
+                team: '1205634578408159'
+              },
+              {
+                nome: "Vivian Coser",
+                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                workspace: '1205695317101693',
+                team: '1205695317101695'
+              },
+
+              {
+                nome: "TRC TEAC Co.",
+                token: '1205684136448507',
                 workspace: '1205540470200318',
                 team: '1205540470200320'
               }]
@@ -820,20 +1088,253 @@
 
         async function executeTasksInOrder() {
 
-        const metasData = await gerarTarefasEMetas();
-        const metas = metasData && metasData.data ? metasData.data : [];
+            const metasData = await gerarTarefasEMetas();
+            const metas = metasData && metasData.data ? metasData.data : [];
 
-        if (metas && metas.length) {
-            console.log(metas);
-            await registerMetasInDatabase(metas);
-            await fetchAsanaTasksAndCompare();
-            await deleteAsanaTasksFromSection()
-            await createTasksFromTable(metas);
-        } else {
-            alert("Erro ao gerar as tarefas!")
-            console.error('No metas data returned from gerarTarefasEMetas.');
+            if (metas && metas.length) {
+                console.log(metas);
+                await registerMetasInDatabase(metas);
+                await deleteAsanaTasksFromSection()
+                await createTasksFromTable(metas);
+            } else {
+                alert("Erro ao gerar as tarefas!")
+                console.error('No metas data returned from gerarTarefasEMetas.');
+            }
+
         }
 
+        async function getBoards() {
+            const empresaName = localStorage.getItem('empresaName');
+            const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+            const empresaObj = empresasTokens.find(e => e.nome === empresaName);
+
+            if (!empresaObj) {
+                console.error("Empresa não encontrada no array empresasTokens.");
+                return null;
+            }
+
+            const proxyUrl = `http://localhost:3000/proxy/boards`;
+            try {
+                const response = await fetch(proxyUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': empresaObj.token
+                    }
+                });
+
+                // Verificar se a resposta foi bem-sucedida
+                if (!response.ok) {
+                    console.error(`Erro na requisição: ${response.status} - ${response.statusText}`);
+                    const textResponse = await response.text();
+                    console.error(`Resposta completa: ${textResponse}`);
+                    return null;
+                }
+
+                const data = await response.json();
+                console.log("Data recebida:", data);
+
+                const squadName = localStorage.getItem('squadName');
+                const board = data.data.find(board => board.name === squadName);
+                return board ? board.board_id : null;
+            } catch (error) {
+                console.error("Erro ao obter boards:", error);
+                return null;
+            }
+        }
+
+        async function deleteTasksKanba(boardID) {
+            const empresaName = localStorage.getItem('empresaName');
+            const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+            const empresaObj = empresasTokens.find(e => e.nome === empresaName);
+
+            if (!empresaObj) {
+                console.error("Empresa não encontrada no array empresasTokens.");
+                return;
+            }
+
+            const colunas = await getColunas(boardID);
+            const colunaTarefasEmAndamento = colunas.data.find(coluna => coluna.name === "Meta semanal e Tarefas");
+
+            if (!colunaTarefasEmAndamento) {
+                console.error("Coluna 'Meta semanal e Tarefas' não encontrada.");
+                return;
+            }
+
+            const cardsResponse = await fetch(`http://localhost:3000/proxy/cards`, {
+                method: 'GET',
+                headers: {
+                    'apikey': empresaObj.token
+                }
+            });
+            const allCards = await cardsResponse.json();
+
+            const cardsToDelete = allCards.data.data.filter(card => card.board_id === boardID && card.column_id === colunaTarefasEmAndamento.column_id);
+
+            for (const card of cardsToDelete) {
+                await fetch(`http://localhost:3000/proxy/delete_cards/${card.card_id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'apikey': empresaObj.token
+                    }
+                });
+            }
+        }
+
+        async function fetchKRsKanba(boardID) {
+            const colunas = await getColunas(boardID);
+            const colunaKR = colunas.data.find(coluna => coluna.name === "KR");
+
+            if (!colunaKR) {
+                console.error("Coluna 'KR' não encontrada.");
+                return;
+            }
+
+            const response = await fetch(`http://localhost:3000/proxy/cards`);
+            const data = await response.json();
+
+            if (data.error) {
+                console.error(data.error);
+                return;
+            }
+
+            const cards = data.data.data.filter(card => card.board_id === boardID && card.column_id === colunaKR.column_id);
+
+            function stripHtml(html) {
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                return doc.body.textContent || "";
+            }
+
+            async function getKRIdByName(name) {
+                const response = await fetch('/get_kr_id?name=' + encodeURIComponent(name));
+                const data = await response.json();
+                return data.success ? data.kr_id : null;
+            }
+
+            for (let card of cards) {
+                const subtasksResponse = await fetch(`http://localhost:3000/proxy/cards_desc/${card.card_id}`);
+                const subtasksData = await subtasksResponse.json();
+                card.description = stripHtml(subtasksData.data.description);
+
+                if (card.description.trim() === "") {
+                    card.description = "";
+                }
+
+                const krID = await getKRIdByName(card.title);
+                if (krID) {
+                    await fetch('/cadastrar_metas', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            id: krID,
+                            descricao: card.description
+                        })
+                    });
+                }
+            }
+        }
+
+
+        async function executeTasksInOrderKanba() {
+            const boardID = await getBoards();
+
+            if (!boardID) {
+                console.error("Board ID não encontrado.");
+                return;
+            }
+
+            const metasData = await gerarTarefasEMetas();
+            const metas = metasData && metasData.data ? metasData.data : [];
+
+            if (metas && metas.length) {
+                await registerMetasInDatabase(metas);
+                await deleteTasksKanba(boardID);
+                await createTasksFromTableKanba(boardID, metas);
+                await fetchKanbaTasksAndCompare();
+            } else {
+                alert("Erro ao gerar as tarefas!")
+                console.error('No metas data returned from gerarTarefasEMetas.');
+            }
+        }
+
+        async function createTasksFromTableKanba(boardID, metas) {
+            console.log(metas)
+            const empresaName = localStorage.getItem('empresaName');
+            const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+            const empresaObj = empresasTokens.find(e => e.nome === empresaName);
+
+            const workflow_id = await getWorkflow(boardID);
+            console.log("Workflow: " + workflow_id)
+            if (!empresaObj) {
+                console.error("Empresa não encontrada no array empresasTokens.");
+                return;
+            }
+
+            const colunas = await getColunas(boardID);
+            const colunaTarefasEmAndamento = colunas.data.find(coluna => coluna.name === "Meta semanal e Tarefas");
+            console.log(colunaTarefasEmAndamento)
+
+            if (!colunaTarefasEmAndamento) {
+                console.error("Coluna 'Tarefas em andamento' não encontrada.");
+                return;
+            }
+
+            for (const meta of metas) {
+                const proxyUrl = `http://localhost:3000/createOKRTasks`;
+                const data = {
+                    "board_id": boardID,
+                    "title": meta.tarefa,
+                    "column_id": colunaTarefasEmAndamento.column_id,
+                    "lane_id": workflow_id + 1,
+                    "description":meta.meta_semanal
+                };
+
+                try {
+                    const response = await fetch(proxyUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'apikey': empresaObj.token
+                        },
+                        body: JSON.stringify(data)
+                    });
+                } catch (error) {
+                    console.error("Erro ao criar tarefa:", error);
+                }
+            }
+        }
+
+
+        async function getWorkflow(boardID) {
+            console.log(boardID)
+            const proxyUrl = `http://localhost:3000/proxy/boards/${boardID}/workflows`;
+            const nomeEmpresaKanba = localStorage.getItem('nomeEmpresaKanba');
+            const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+            const empresaObj = empresasTokens.find(empresa => empresa.nome === nomeEmpresaKanba);
+            if (!empresaObj) {
+                console.error("Empresa não encontrada no array empresasTokens.");
+                return null;
+            }
+            const empresaToken = empresaObj.token;
+
+            const response = await fetch(proxyUrl, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': empresaToken
+                }
+            });
+
+            if (!response.ok) {
+                console.error("Erro ao obter workflows:", await response.text());
+                return null;
+            }
+
+            const responseData = await response.json();
+            const workflow = responseData.data.find(w => w.name === "Cards workflow");
+            return workflow ? workflow.workflow_id : null;
         }
 
         async function registerMetasInDatabase(metas) {
@@ -1037,7 +1538,7 @@
               },
               {
                 nome: "Colégio Mopi",
-                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                token: 'Bearer 1/1205316107728184:00826bd0b7f0b5d590b98eebdd07d2ad',
                 workspace: '1205380996045685',
                 team: '1205380996045687'
               },
@@ -1078,8 +1579,32 @@
                 team: '1205540470200320'
               },
               {
+                nome: "Planeta Sublimação",
+                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                workspace: '1205619173673240',
+                team: '1205619173673242'
+              },
+              {
+                nome: "Espaço Pontal",
+                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                workspace: '1205634578408157',
+                team: '1205634578408159'
+              },
+              {
+                nome: "Rafael Oliveira",
+                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                workspace: '1205684136448505',
+                team: '1205634578408159'
+              },
+              {
+                nome: "Vivian Coser",
+                token: 'Bearer 1/1205186190607018:e6e9bff4bf54b04e712d5ab8a248d8e3',
+                workspace: '1205695317101693',
+                team: '1205695317101695'
+              },
+              {
                 nome: "TRC TEAC Co.",
-                token: 'dhBpwYm8YOcW9uCzreTZF2jTg7ub3kHj8xhkCXVr',
+                token: '1205684136448507',
                 workspace: '1205540470200318',
                 team: '1205540470200320'
               }]
@@ -1087,6 +1612,8 @@
               localStorage.setItem('empresasTokens', JSON.stringify(empresasTokens));
 
             event.preventDefault();
+            const boardID = await getBoards();
+
 
             const empresaName = localStorage.getItem('empresaName');
             salvarDadosNoLocalStorage();
@@ -1095,6 +1622,8 @@
                 await fetchAsanaTasksAndCompare();
             }
             else{
+                await fetchKRsKanba(boardID);
+
                 await fetchKanbaTasksAndCompare();
             }
 
@@ -1102,15 +1631,17 @@
             runAsanaFunctions(event);
         }
 
+
     </script>
 </head>
 
 <body onload="updateSquads();">
-    <h2>Montar Sprint da Semana - 6</h2>
+    <h2>Montar Sprint da Semana</h2>
     <form action="/montar_sprint_semana" method="post" onsubmit="executeFunctions(event);">
+
         <div>
             <label for="empresa_id">Selecione a Empresa:</label>
-            <select name="empresa_id" id="empresa_id" onchange="updateSquads();">
+            <select name="empresa_id" id="empresa_id" onchange="updateSquads()">
                 {% for empresa in empresas %}
                 <option value="{{ empresa.id }}">{{ empresa.nome_contato }}</option>
                 {% endfor %}
@@ -1160,6 +1691,7 @@
             {% for tarefa in tarefas_andamento %}
             <li>ID: {{ tarefa.id }} - Tarefa: {{ tarefa.tarefa }} - Data Inclusão: {{ tarefa.data_inclusao }}
                 <ul>
+                    {% set subtarefas_list = tarefa.subtarefas|tojson|safe %}
                     {% for subtarefa in tarefa.subtarefas %}
                     <li>Subtarefa: {{ subtarefa }}</li>
                     {% endfor %}
@@ -1182,8 +1714,21 @@
             {% endfor %}
         </ul>
     </section>
-    <button onclick="executeTasksInOrder()">OK</button>
-</body>
+    <button onclick="handleExecuteTasks()">OK</button>
 
+    <script>
+        function handleExecuteTasks() {
+            const empresaName = localStorage.getItem('empresaName');
+            if (empresaName === "TRC TEAC Co.") {
+                console.log("trc")
+
+                executeTasksInOrderKanba();
+            } else {
+                console.log("não é")
+                executeTasksInOrder();
+            }
+        }
+    </script>
+</body>
 </html>
 {% endblock %}
