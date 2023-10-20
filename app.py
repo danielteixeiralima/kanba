@@ -639,7 +639,10 @@ def perguntar_gpt(pergunta, pergunta_id, messages):
     }
 
     backoff_time = 1  # Começamos com um tempo de espera de 1 segundo
-    while True:
+    max_attempts = 5  # Número máximo de tentativas
+    attempts = 0
+
+    while attempts < max_attempts:
         try:
             response = requests.post(url, headers=headers, data=json.dumps(data))
             response.raise_for_status()
@@ -649,12 +652,18 @@ def perguntar_gpt(pergunta, pergunta_id, messages):
 
             return response.json()['choices'][0]['message']['content'], messages
         except requests.exceptions.HTTPError as e:
+            attempts += 1
             if e.response.status_code in (429, 520, 502, 503):  # Limite de requisições atingido ou erro de servidor
                 print(f"Erro {e.response.status_code} atingido. Aguardando antes de tentar novamente...")
                 time.sleep(backoff_time)  # Aguarda antes de tentar novamente
                 backoff_time *= 2  # Aumenta o tempo de espera
             else:
-                raise
+                print(f"Erro ao fazer a requisição: {e}")
+                print(f"Resposta completa: {e.response.text}")  # Imprime a resposta completa
+                break
+
+    # Se chegarmos aqui, todas as tentativas falharam
+    return None, messages
 
 
 @app.route('/visualizar_planejamento_atual/<int:id_empresa>', methods=['GET'])
@@ -977,6 +986,38 @@ def get_macro_acoes():
 
     result = [macro_acao.texto for macro_acao in macro_acoes]
     return jsonify(result)
+
+@app.route('/register_metas', methods=['POST'])
+def register_metas():
+    try:
+        metas_data = request.json['metas']
+        for meta_data in metas_data:
+            
+            empresa = Empresa.query.filter_by(nome_contato=meta_data['empresa']).first()
+            if not empresa:
+                return jsonify(success=False, error="Empresa não encontrada")
+
+            squad = Squad.query.filter_by(id=meta_data['squad_id'], empresa_id=empresa.id).first()
+            if not squad:
+                return jsonify(success=False, error="Squad não encontrado")
+
+            meta = TarefasMetasSemanais(
+                empresa=meta_data['empresa'],
+                squad_name=meta_data['squad_name'],
+                squad_id=squad.id,
+                tarefa=meta_data['tarefa'],
+                meta_semanal=meta_data['meta_semanal'],
+                data_inclusao=datetime.utcnow(),
+                data_conclusao=meta_data.get('data_conclusao'),
+                subtarefas=meta_data.get('subtarefas', {})
+            )
+            db.session.add(meta)
+        db.session.commit()
+        return jsonify(success=True)
+    except Exception as e:
+        return jsonify(success=False, error=str(e))
+
+
 
 
 @app.route('/get_tarefas_metas_semanais_new', methods=['GET'])
@@ -2947,61 +2988,58 @@ def enviar_krs():
 
     forms_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
 
-    # Solicitar ao ChatGPT-4 que resuma forms_details
     prompt_resumo = f"Por favor, resuma a seguinte informação para metade do tamanho: {forms_details}"
     pergunta_id_resumo = str(uuid.uuid4())
     messages_resumo = []
-    print("Prompt de resumo:", prompt_resumo)
     forms_details_resumidos, messages_resumo = perguntar_gpt(prompt_resumo, pergunta_id_resumo, messages_resumo)
-    print("Resposta de resumo:", forms_details_resumidos)
+
+    if not forms_details_resumidos:
+        print("Não foi possível obter uma resposta do GPT-4 para resumo.")
+        return redirect('/')
 
     okrs = OKR.query.filter_by(squad_id=squad_id).all()
     okrs_details = ", ".join([f"{okr.objetivo} (ID: {okr.id})" for okr in okrs])
 
     prompt = (
-            f"GPT-4, tendo em vista os Objetivos-Chave de Resultados (OKRs) propostos e as informações sobre a empresa {forms_details_resumidos} e os objetivos{okrs_details}, pelo squad " + squad.nome_squad + " da empresa " + empresa.nome_contato + " ,o intuito é definir Key Results (KRs) para cada objetivo da empresa. "
-           "Lembre-se das seguintes boas práticas para escrever os KRs:"
-           "\n - Simplicidade: Os KRs devem ser simples e fáceis de entender. Qualquer pessoa na organização deve ser capaz de entender o que o KR significa."
-           "\n - Mensurabilidade: Cada KR deve ser quantificável, com uma maneira clara de medir o progresso."
-           "\n - Alinhamento com os Objetivos: Os KRs devem ajudar a empresa a avançar em direção aos seus objetivos."
-           "\n - Ambicioso, mas Realista: Os KRs devem ser desafiadores, mas também alcançáveis."
-           "\n - Tempo Definido: Cada KR deve ter um prazo claro, neste caso, 90 dias."
-           "\n - Evite KR Vinculados a Ações: KRs são resultados que você quer alcançar, não as coisas que você vai fazer para chegar lá."
-           "\n Baseado nas informações fornecidas, forneça sugestões de KRs para o próximo ciclo de 90 dias. "
-           "\n Por favor, responda no seguinte formato JSON, evitando incluir IDs nos objetivos:"
-           "\n ["
-           "\n   {"
-           "\n     'objetivo': 'descrição do objetivo',"
-           "\n     'empresa': 'nome da empresa',"
-           "\n     'squad': 'nome do squad',"
-           "\n     'kr': 'descrição do KR',"
-           "\n     'meta': 'meta para o KR'"
-           "\n   },"
-           "\n   ... outros KRs ..."
-           "\n ]")
-
-    print("Pergunta completa:", prompt)
+        f"GPT-4, tendo em vista os Objetivos-Chave de Resultados (OKRs) propostos e as informações sobre a empresa {forms_details_resumidos} e os objetivos{okrs_details}, pelo squad {squad.nome_squad} da empresa {empresa.nome_contato}, o intuito é definir Key Results (KRs) para cada objetivo da empresa. "
+        "Lembre-se das seguintes boas práticas para escrever os KRs:"
+        "\n - Simplicidade: Os KRs devem ser simples e fáceis de entender. Qualquer pessoa na organização deve ser capaz de entender o que o KR significa."
+        "\n - Mensurabilidade: Cada KR deve ser quantificável, com uma maneira clara de medir o progresso."
+        "\n - Alinhamento com os Objetivos: Os KRs devem ajudar a empresa a avançar em direção aos seus objetivos."
+        "\n - Ambicioso, mas Realista: Os KRs devem ser desafiadores, mas também alcançáveis."
+        "\n - Tempo Definido: Cada KR deve ter um prazo claro, neste caso, 90 dias."
+        "\n - Evite KR Vinculados a Ações: KRs são resultados que você quer alcançar, não as coisas que você vai fazer para chegar lá."
+        "\n Baseado nas informações fornecidas, forneça sugestões de KRs para o próximo ciclo de 90 dias. "
+        "\n Por favor, responda no seguinte formato JSON, evitando incluir IDs nos objetivos:"
+        "\n ["
+        "\n   {"
+        "\n     'objetivo': 'descrição do objetivo',"
+        "\n     'empresa': 'nome da empresa',"
+        "\n     'squad': 'nome do squad',"
+        "\n     'kr': 'descrição do KR',"
+        "\n     'meta': 'meta para o KR'"
+        "\n   },"
+        "\n   ... outros KRs ..."
+        "\n ]")
 
     pergunta_id = str(uuid.uuid4())
     resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
-    print("Resposta Bruta do GPT-4:", resposta)
 
-    # Correção na formatação do JSON:
+    if not resposta:
+        print("Não foi possível obter uma resposta do GPT-4 para KRs.")
+        return redirect('/')
+
     resposta_corrigida = resposta.replace("'", '"')
     try:
         krs_list = json.loads(resposta_corrigida)
-    except json.JSONDecodeError as e:
-        print("JSONDecodeError:", e)
-        print("Resposta corrigida:", resposta_corrigida)
+    except json.JSONDecodeError:
         return redirect('/')
 
     KrGeradoChatAprovacao.query.filter_by(empresa_id=empresa.id, squad_id=squad.id).delete()
 
     for kr_data in krs_list:
         objetivo = kr_data.get('objetivo')
-        # Remover o ID do objetivo
         objetivo = re.sub(r'\(ID: \d+\)', '', objetivo).strip()
-        # O restante do código permanece igual
         descricao_KR = kr_data.get('kr')
         meta_KR = kr_data.get('meta')
 
@@ -3013,13 +3051,11 @@ def enviar_krs():
             meta=meta_KR
         )
         db.session.add(kr)
-        print(f"Adicionando KR: Objetivo: {objetivo}, Descrição: {descricao_KR}, Meta: {meta_KR}")
 
     try:
         db.session.commit()
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        print(f"Erro ao inserir no banco de dados: {e}")
 
     return redirect('/')
 
@@ -3223,6 +3259,25 @@ def get_krs_prompt_gpt(squad_id):
     }
 
     return jsonify(result)
+
+@app.route('/listar_tarefas', methods=['GET'])
+def listar_tarefas():
+    empresa = request.args.get('empresa')
+    squad_name = request.args.get('squad_name')
+
+    tarefas = TarefasMetasSemanais.query.filter_by(empresa=empresa, squad_name=squad_name).all()
+
+    return jsonify([{
+        'id': tarefa.id,
+        'empresa': tarefa.empresa,
+        'squad_name': tarefa.squad_name,
+        'tarefa': tarefa.tarefa,
+        'meta_semanal': tarefa.meta_semanal,
+        'data_inclusao': tarefa.data_inclusao,
+        'data_conclusao': tarefa.data_conclusao,
+        'subtarefas': tarefa.subtarefas
+    } for tarefa in tarefas])
+
 
 
 @app.route('/gerar_macro_acoes_prompt_gpt', methods=['POST'])
@@ -3916,7 +3971,6 @@ def get_squad_id():
     except Exception as e:
         return jsonify(success=False, error=str(e))
 
-
 @app.route('/get_tarefas_atuais', methods=['POST'])
 def get_tarefas_atuais():
     try:
@@ -3969,6 +4023,8 @@ def get_tarefas_concluidas():
         return jsonify(result)
     except Exception as e:
         return jsonify(error=str(e))
+
+
 
 
 @app.route('/deletar_tarefa_concluida/<int:id>', methods=['POST'])
@@ -4124,10 +4180,10 @@ def get_squads_sprint(empresa_id):
 
 @app.route('/gerar_tarefas_metas_semanais_novo', methods=['POST'])
 def gerar_tarefas_metas_semanais_novo():
+    global messages
+
     empresa_id = request.json['empresa_id']
-    print(empresa_id)
     squad_id = request.json['squad_id']
-    print(f"Empresa ID: {empresa_id}, Squad ID: {squad_id}")
 
     empresa = Empresa.query.filter_by(id=empresa_id).first()
     squad = Squad.query.filter_by(id=squad_id).first()
@@ -4135,15 +4191,10 @@ def gerar_tarefas_metas_semanais_novo():
     response_data = []
 
     forms_objetivos_details = ", ".join([json.dumps(form_obj.data) for form_obj in forms_objetivos])
-    # Solicitar ao ChatGPT-4 que resuma forms_objetivos_details
     prompt_resumo = f"Por favor, resuma a seguinte informação para metade do tamanho: {forms_objetivos_details}"
-
     pergunta_id_resumo = str(uuid.uuid4())
     messages_resumo = []
-    print("Prompt de resumo:", prompt_resumo)
-
     forms_objetivos_resumidos, messages_resumo = perguntar_gpt(prompt_resumo, pergunta_id_resumo, messages_resumo)
-    print("Resposta de resumo:", forms_objetivos_resumidos)
 
     okrs = OKR.query.filter_by(squad_id=squad_id).all()
     krs = KR.query.filter_by(squad_id=squad_id).all()
@@ -4161,16 +4212,7 @@ def gerar_tarefas_metas_semanais_novo():
         f"{tarefa.tarefa} (ID: {tarefa.id}, Data Inclusão: {tarefa.data_inclusao}, Data Conclusão: {tarefa.data_conclusao}, Subtarefas: {json.dumps(tarefa.subtarefas) if tarefa.subtarefas else 'Nenhuma'})"
         for tarefa in tarefas_finalizadas
     ])
-    """
-    prompt = (
-        f"Informações da empresa {empresa.nome_contato} e squad {squad.nome_squad}:"
-        f"FormsObjetivos: {forms_objetivos_resumidos}, OKRs: {okrs_details}, "
-        f"KRs: {krs_details}, MacroAções: {macro_acoes_details}, "
-        f"Tarefas em Andamento: {tarefas_andamento_details}, Tarefas Finalizadas: {tarefas_finalizadas_details}. "
-        f"Com base nessas informações, sugira tarefas para a proxima semana."
-        f"Formate a resposta como um JSON com as seguintes chaves: tarefa, meta_semanal, squad, empresa. Não adicione outras chaves além destas. Responda apenas com o JSON"
-    )
-    """
+
     prompt = (
         f"Informações da empresa {empresa.nome_contato} e squad {squad.nome_squad}:"
         f"FormsEquipe: {forms_objetivos_resumidos}, OKRs: {okrs_details}, "
@@ -4184,58 +4226,39 @@ def gerar_tarefas_metas_semanais_novo():
 
     pergunta_id = str(uuid.uuid4())
     messages = []
-    print("Prompt completo:", prompt)
-
     resposta, messages = perguntar_gpt(prompt, pergunta_id, messages)
-    print("Resposta completa:", resposta)
 
-    # Correção na formatação do JSON:
+    if not resposta:
+        return jsonify({'status': 'error', 'message': 'Não foi possível obter uma resposta do GPT-4'})
+
     resposta_corrigida = "[" + resposta.replace("}\n{", "},\n{") + "]"
     tarefas_metas_semanais_list = json.loads(resposta_corrigida)
 
+    TarefasMetasSemanais.query.filter_by(squad_id=squad_id, empresa=empresa.nome_contato).delete()
+    db.session.commit()
+
+    for tarefa_metas_semanais_data in tarefas_metas_semanais_list:
+        tarefa = tarefa_metas_semanais_data.get('tarefa')
+        meta_semanal = tarefa_metas_semanais_data.get('meta_semanal')
+        squad_name = tarefa_metas_semanais_data.get('squad')
+        empresa_name = tarefa_metas_semanais_data.get('empresa')
+
+        tarefa_metas_semanais = TarefasMetasSemanais(
+            empresa=empresa_name,
+            squad_name=squad_name,
+            squad_id=squad_id,
+            tarefa=tarefa,
+            meta_semanal=meta_semanal
+        )
+        db.session.add(tarefa_metas_semanais)
+        response_data.append(
+            {"tarefa": tarefa, "meta_semanal": meta_semanal, "squad": squad_name, "empresa": empresa_name})
+
     try:
-        # Remova registros anteriores relacionados à squad e à empresa.
-        TarefasMetasSemanais.query.filter_by(squad_id=squad_id, empresa=empresa.nome_contato).delete()
-        db.session.commit()
-
-        # Certifique-se de que a resposta é uma lista de dicionários
-        if not isinstance(tarefas_metas_semanais_list, list):
-            raise ValueError("A resposta não é uma lista.")
-
-        for tarefa_metas_semanais_data in tarefas_metas_semanais_list:
-            # Cheque se o item atual é um dicionário
-            if not isinstance(tarefa_metas_semanais_data, dict):
-                print(f"Item inesperado na resposta: {tarefa_metas_semanais_data}")
-                continue
-
-            # Verificação das chaves necessárias
-            tarefa = tarefa_metas_semanais_data.get('tarefa')
-            meta_semanal = tarefa_metas_semanais_data.get('meta_semanal')
-            squad_name = tarefa_metas_semanais_data.get('squad')
-            empresa_name = tarefa_metas_semanais_data.get('empresa')
-
-            if not all([tarefa, meta_semanal, squad_name, empresa_name]):
-                print(f"Dados incompletos ou ausentes no registro: {tarefa_metas_semanais_data}")
-                continue
-
-            # Crie o objeto e adicione ao banco de dados
-            tarefa_metas_semanais = TarefasMetasSemanais(
-                empresa=empresa_name,
-                squad_name=squad_name,
-                squad_id=squad_id,
-                tarefa=tarefa,
-                meta_semanal=meta_semanal
-            )
-            db.session.add(tarefa_metas_semanais)
-            response_data.append(
-                {"tarefa": tarefa, "meta_semanal": meta_semanal, "squad": squad_name, "empresa": empresa_name})
-
-        # Tente fazer o commit
         db.session.commit()
     except Exception as e:
-        # Se algo der errado, imprima o erro e faça rollback da sessão
-        print(f"Erro ao adicionar os dados ao banco: {e}")
         db.session.rollback()
+        return jsonify({'status': 'error', 'message': f"Erro ao adicionar os dados ao banco: {e}"})
 
     return jsonify({'status': 'success', 'data': response_data})
 
@@ -4264,7 +4287,6 @@ def verificar_tarefa_concluida_existente():
 
     tarefa_existente = TarefasFinalizadas.query.filter_by(empresa=empresa, squad_name=squad_name,
                                                           tarefa=tarefa_nome).first()
-
     return jsonify(existe=bool(tarefa_existente))
 
 
@@ -4285,13 +4307,27 @@ def get_squad_name():
         return jsonify(error="Erro ao buscar nome do squad"), 404
 
 
+
 @app.route('/get_empresa_name', methods=['GET'])
 def get_empresa_name():
     empresa_id = request.args.get('id')
-    empresa = Empresa.query.get(empresa_id)
+    print(f"ID da empresa recebido: {empresa_id}")
+
+    if not empresa_id:
+        return jsonify({'error': 'ID de empresa não fornecido'}), 400
+
+    try:
+        empresa_id = int(empresa_id)
+    except ValueError:
+        print("Erro ao converter o ID da empresa para inteiro.")
+        return jsonify({'error': 'ID de empresa inválido'}), 400
+
+    empresa = db.session.get(Empresa, empresa_id)
     if empresa:
+        print(f"Empresa encontrada: {empresa.nome_contato}")
         return jsonify({'nome': empresa.nome_contato})
     else:
+        print("Empresa não encontrada.")
         return jsonify({'error': 'Empresa não encontrada'}), 404
 
 
@@ -4307,6 +4343,113 @@ def get_kr_id():
     except Exception as e:
         return jsonify(success=False, message=str(e))
 
+@app.route('/cadastrar_tarefas_concluidas_kanba', methods=['POST'])
+def cadastrar_tarefas_concluidas_kanba():
+    try:
+        tarefas_data = request.json['tarefas']
+        empresaName = request.json['empresa']
+        squadName = request.json['squad_name']
+
+        empresa = Empresa.query.filter_by(nome_contato=empresaName).first()
+        if not empresa:
+            return jsonify(success=False, error="Empresa não encontrada")
+
+        squad = Squad.query.filter_by(nome_squad=squadName, empresa_id=empresa.id).first()
+        if not squad:
+            return jsonify(success=False, error="Squad não encontrado")
+
+        for tarefa_data in tarefas_data:
+            tarefa_existente = TarefasFinalizadas.query.filter_by(empresa=empresaName, squad_name=squadName, tarefa=tarefa_data['title']).first()
+            if tarefa_existente:
+                continue
+
+            subtarefas_list = tarefa_data.get('subtarefas', [])
+
+            tarefa = TarefasFinalizadas(
+                empresa=empresaName,
+                squad_name=squadName,
+                squad_id=squad.id,
+                tarefa=tarefa_data['title'],
+                data_inclusao=datetime.utcnow(),
+                subtarefas=subtarefas_list
+            )
+            db.session.add(tarefa)
+        db.session.commit()
+        return jsonify(success=True)
+    except Exception as e:
+        return jsonify(success=False, error=str(e))
+
+@app.route('/cadastrar_tarefas_atuais_kanba', methods=['POST'])
+def cadastrar_tarefas_atuais_kanba():
+    try:
+        tarefas_data = request.json['tarefas']
+        empresaName = request.json['empresa']
+        squadName = request.json['squad_name']
+
+        empresa = Empresa.query.filter_by(nome_contato=empresaName).first()
+        if not empresa:
+            return jsonify(success=False, error="Empresa não encontrada")
+
+        squad = Squad.query.filter_by(nome_squad=squadName, empresa_id=empresa.id).first()
+        if not squad:
+            return jsonify(success=False, error="Squad não encontrado")
+
+        for tarefa_data in tarefas_data:
+            tarefa_existente = TarefasAndamento.query.filter_by(empresa=empresaName, squad_name=squadName, tarefa=tarefa_data['title']).first()
+            if tarefa_existente:
+                continue
+
+            # Já que as subtarefas são uma lista de descrições, não precisamos fazer outra iteração
+            subtarefas_list = tarefa_data['subtarefas']
+
+            tarefa = TarefasAndamento(
+                empresa=empresaName,
+                squad_name=squadName,
+                squad_id=squad.id,
+                tarefa=tarefa_data['title'],
+                data_inclusao=datetime.utcnow(),
+                subtarefas=tarefa_data.get('subtarefas', {})   
+            )
+            db.session.add(tarefa)
+        db.session.commit()
+        return jsonify(success=True)
+    except Exception as e:
+        return jsonify(success=False, error=str(e))
+
+@app.route('/verificar_tarefa_existente_kanba', methods=['POST'])
+def verificar_tarefa_existente_kanba():
+    try:
+        tarefa_data = request.json
+
+        empresa = tarefa_data['empresa']
+        squad_name = tarefa_data['squad_name']
+        tarefa_nome = tarefa_data['tarefa']
+
+        tarefa_existente = TarefasAndamento.query.filter_by(empresa=empresa, squad_name=squad_name, tarefa=tarefa_nome).first()
+
+        return jsonify(existe=bool(tarefa_existente))
+    except Exception as e:
+        print("Erro na rota /verificar_tarefa_existente_kanba:", str(e))  # Adicionando log para identificar o erro
+        return jsonify(success=False, error=str(e)), 500
+    
+
+
+@app.route('/verificar_tarefa_existente_concluidas_kanba', methods=['POST'])
+def verificar_tarefa_existente_concluidas_kanba():
+    try:
+        tarefa_data = request.json
+
+        empresa = tarefa_data['empresa']
+        squad_name = tarefa_data['squad_name']
+        tarefa_nome = tarefa_data['tarefa']
+
+        tarefa_existente = TarefasFinalizadas.query.filter_by(empresa=empresa, squad_name=squad_name, tarefa=tarefa_nome).first()
+
+        return jsonify(existe=bool(tarefa_existente))
+    except Exception as e:
+        print("Erro na rota /verificar_tarefa_existente_concluidas_kanba:", str(e))  # Adicionando log para identificar o erro
+        return jsonify(success=False, error=str(e)), 500
+
 
 @app.route('/cadastrar_metas', methods=['POST'])
 def cadastrar_metas():
@@ -4315,8 +4458,12 @@ def cadastrar_metas():
         kr_id = data.get('id')
         descricao = data.get('descricao')
 
+        # Log da entrada
+        print(f"Recebendo data: {data}")
+
         # Certifique-se de que kr_id não seja nulo
         if not kr_id:
+            print("ID do KR não fornecido.")
             return jsonify(success=False, message="ID do KR não fornecido.")
 
         # Buscar o KR pelo ID usando Session.get()
@@ -4326,10 +4473,18 @@ def cadastrar_metas():
         if kr and descricao and kr.meta != descricao:
             kr.meta = descricao
             db.session.commit()
+            print(f"Meta para KR com id {kr_id} atualizada com sucesso!")
             return jsonify(success=True, message="Meta atualizada com sucesso!")
         else:
+            if not kr:
+                print(f"KR com id {kr_id} não encontrado.")
+            elif not descricao:
+                print(f"Descrição não fornecida para KR com id {kr_id}.")
+            elif kr.meta == descricao:
+                print(f"Descrição já é a mesma para KR com id {kr_id}.")
             return jsonify(success=False, message="KR não encontrado ou descrição já é a mesma.")
     except Exception as e:
+        print(f"Exceção encontrada: {str(e)}")
         return jsonify(success=False, message=str(e))
 
 
@@ -4337,9 +4492,9 @@ def cadastrar_metas():
 def get_empresaId():
     try:
         empresa_name = request.args.get('empresa_name')
-        print("Empresa: " + empresa_name)
+        
         empresa = Empresa.query.filter_by(nome_contato=empresa_name).first()
-
+        
         if not empresa:
             return jsonify(success=False, error="Empresa não encontrada")
         return jsonify(success=True, empresa_id=empresa.id)

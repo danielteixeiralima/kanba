@@ -237,37 +237,37 @@
 
 
         async function fetchKanbaTasks(boardID) {
+            const empresaName = localStorage.getItem('empresaName');
+            const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+            const empresaObj = empresasTokens.find(e => e.nome === empresaName);
+
+            const headers = {
+                'Content-Type': 'application/json',
+                'apikey': empresaObj ? empresaObj.token : ''
+            };
+
             const colunas = await getColunas(boardID);
             const colunaTarefasEmAndamento = colunas.data.find(coluna => coluna.name === "Tarefas em andamento");
 
-            if (!colunaTarefasEmAndamento) {
-                console.error("Coluna 'Tarefas em andamento' não encontrada.");
-                return;
-            }
+            if (!colunaTarefasEmAndamento) return;
 
-            const response = await fetch(`http://localhost:3000/proxy/cards`);
+            const response = await fetch(`http://localhost:3000/proxy/cards`, { headers: headers });
             const data = await response.json();
 
-            if (data.error) {
-                console.error(data.error);
-                return;
-            }
+            if (data.error) return;
 
             const cards = data.data.data.filter(card => card.board_id === boardID && card.column_id === colunaTarefasEmAndamento.column_id);
 
-            // Função para remover tags HTML
             function stripHtml(html) {
                 const doc = new DOMParser().parseFromString(html, 'text/html');
                 return doc.body.textContent || "";
             }
 
-            // Pegar as subtasks de cada card
             for (let card of cards) {
-                const subtasksResponse = await fetch(`http://localhost:3000/proxy/cards_desc/${card.card_id}`);
+                const subtasksResponse = await fetch(`http://localhost:3000/proxy/cards_desc/${card.card_id}`, { headers: headers });
                 const subtasksData = await subtasksResponse.json();
-                card.subtasks = subtasksData.data.subtasks || []; // Adicionando as subtasks ao card
+                card.subtasks = subtasksData.data.subtasks || [];
 
-                // Limpar tags HTML das subtasks
                 for (let subtask of card.subtasks) {
                     subtask.description = stripHtml(subtask.description);
                 }
@@ -277,37 +277,38 @@
         }
 
         async function fetchKanbaTasksConcluidas(boardID) {
+            const empresaName = localStorage.getItem('empresaName');
+            const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+            const empresaObj = empresasTokens.find(e => e.nome === empresaName);
+
+            const headers = {
+                'Content-Type': 'application/json',
+                'apikey': empresaObj ? empresaObj.token : ''
+            };
+
             const colunas = await getColunas(boardID);
+            console.log(colunas)
             const colunaTarefasConcluidas = colunas.data.find(coluna => coluna.name === "Tarefas concluídas");
 
-            if (!colunaTarefasConcluidas) {
-                console.error("Coluna 'Tarefas concluídas' não encontrada.");
-                return;
-            }
+            if (!colunaTarefasConcluidas) return [];
 
-            const response = await fetch(`http://localhost:3000/proxy/cards`);
+            const response = await fetch(`http://localhost:3000/proxy/cards`, { headers: headers });
             const data = await response.json();
 
-            if (data.error) {
-                console.error(data.error);
-                return;
-            }
+            if (data.error || !data.data || !Array.isArray(data.data.data)) return [];
 
             const cards = data.data.data.filter(card => card.board_id === boardID && card.column_id === colunaTarefasConcluidas.column_id);
 
-            // Função para remover tags HTML
             function stripHtml(html) {
                 const doc = new DOMParser().parseFromString(html, 'text/html');
                 return doc.body.textContent || "";
             }
 
-            // Pegar as subtasks de cada card
             for (let card of cards) {
-                const subtasksResponse = await fetch(`http://localhost:3000/proxy/cards_desc/${card.card_id}`);
+                const subtasksResponse = await fetch(`http://localhost:3000/proxy/cards_desc/${card.card_id}`, { headers: headers });
                 const subtasksData = await subtasksResponse.json();
-                card.subtasks = subtasksData.data.subtasks || []; // Adicionando as subtasks ao card
+                card.subtasks = subtasksData.data.subtasks || [];
 
-                // Limpar tags HTML das subtasks
                 for (let subtask of card.subtasks) {
                     subtask.description = stripHtml(subtask.description);
                 }
@@ -328,6 +329,7 @@
             const dbTasksConc = await fetchTarefasFinalizadas();
 
             await registerTasksInDatabaseKanba(asanaTasks);
+            console.log(asanaConcluidas)
             await registerTasksInDatabaseConcluidosKanba(asanaConcluidas);
 
             const asanaTaskNames = asanaTasks.map(task => task.title.toLowerCase().trim());
@@ -351,7 +353,7 @@
         async function getColunas(boardID) {
             console.log("Board:" + boardID)
             const proxyUrl = `http://localhost:3000/proxy/boards/${boardID}/columns`;
-            const nomeEmpresaKanba = localStorage.getItem('nomeEmpresaKanba');
+            const nomeEmpresaKanba = localStorage.getItem('empresaName');
             const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
             const empresaObj = empresasTokens.find(empresa => empresa.nome === nomeEmpresaKanba);
             if (!empresaObj) {
@@ -511,6 +513,8 @@
         }
 
         async function registerTasksInDatabaseConcluidosKanba(tasks) {
+            if (!Array.isArray(tasks)) return;
+
             const empresaName = localStorage.getItem('empresaName');
             const squadName = localStorage.getItem('squadName');
 
@@ -1078,7 +1082,7 @@
 
               {
                 nome: "TRC TEAC Co.",
-                token: '1205684136448507',
+                token: '3zm3y2udvUvZQT8kvKv6mWItHtZcfxbcpDF121cr',
                 workspace: '1205540470200318',
                 team: '1205540470200320'
               }]
@@ -1107,6 +1111,7 @@
             const empresaName = localStorage.getItem('empresaName');
             const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
             const empresaObj = empresasTokens.find(e => e.nome === empresaName);
+            console.log(empresaObj)
 
             if (!empresaObj) {
                 console.error("Empresa não encontrada no array empresasTokens.");
@@ -1135,7 +1140,9 @@
                 console.log("Data recebida:", data);
 
                 const squadName = localStorage.getItem('squadName');
+                console.log(squadName)
                 const board = data.data.find(board => board.name === squadName);
+                console.log("BAODSA: " + board)
                 return board ? board.board_id : null;
             } catch (error) {
                 console.error("Erro ao obter boards:", error);
@@ -1182,21 +1189,24 @@
         }
 
         async function fetchKRsKanba(boardID) {
+            const empresaName = localStorage.getItem('empresaName');
+            const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
+            const empresaObj = empresasTokens.find(e => e.nome === empresaName);
+
+            const headers = {
+                'Content-Type': 'application/json',
+                'apikey': empresaObj ? empresaObj.token : ''
+            };
+
             const colunas = await getColunas(boardID);
             const colunaKR = colunas.data.find(coluna => coluna.name === "KR");
 
-            if (!colunaKR) {
-                console.error("Coluna 'KR' não encontrada.");
-                return;
-            }
+            if (!colunaKR) return;
 
-            const response = await fetch(`http://localhost:3000/proxy/cards`);
+            const response = await fetch(`http://localhost:3000/proxy/cards`, { headers: headers });
             const data = await response.json();
 
-            if (data.error) {
-                console.error(data.error);
-                return;
-            }
+            if (data.error) return;
 
             const cards = data.data.data.filter(card => card.board_id === boardID && card.column_id === colunaKR.column_id);
 
@@ -1212,7 +1222,7 @@
             }
 
             for (let card of cards) {
-                const subtasksResponse = await fetch(`http://localhost:3000/proxy/cards_desc/${card.card_id}`);
+                const subtasksResponse = await fetch(`http://localhost:3000/proxy/cards_desc/${card.card_id}`, { headers: headers });
                 const subtasksData = await subtasksResponse.json();
                 card.description = stripHtml(subtasksData.data.description);
 
@@ -1252,7 +1262,6 @@
                 await registerMetasInDatabase(metas);
                 await deleteTasksKanba(boardID);
                 await createTasksFromTableKanba(boardID, metas);
-                await fetchKanbaTasksAndCompare();
             } else {
                 alert("Erro ao gerar as tarefas!")
                 console.error('No metas data returned from gerarTarefasEMetas.');
@@ -1310,7 +1319,7 @@
         async function getWorkflow(boardID) {
             console.log(boardID)
             const proxyUrl = `http://localhost:3000/proxy/boards/${boardID}/workflows`;
-            const nomeEmpresaKanba = localStorage.getItem('nomeEmpresaKanba');
+            const nomeEmpresaKanba = localStorage.getItem('empresaName');
             const empresasTokens = JSON.parse(localStorage.getItem('empresasTokens'));
             const empresaObj = empresasTokens.find(empresa => empresa.nome === nomeEmpresaKanba);
             if (!empresaObj) {
@@ -1604,7 +1613,7 @@
               },
               {
                 nome: "TRC TEAC Co.",
-                token: '1205684136448507',
+                token: '3zm3y2udvUvZQT8kvKv6mWItHtZcfxbcpDF121cr',
                 workspace: '1205540470200318',
                 team: '1205540470200320'
               }]
@@ -1613,15 +1622,19 @@
 
             event.preventDefault();
             const boardID = await getBoards();
+            console.log("boardzinho: " + boardID)
 
 
             const empresaName = localStorage.getItem('empresaName');
             salvarDadosNoLocalStorage();
             if (empresaName !== "TRC TEAC Co.") {
+                console.log("NÃO É TRC")
                 await fetchAsanaKRs();
                 await fetchAsanaTasksAndCompare();
             }
             else{
+                console.log("TRC")
+
                 await fetchKRsKanba(boardID);
 
                 await fetchKanbaTasksAndCompare();
